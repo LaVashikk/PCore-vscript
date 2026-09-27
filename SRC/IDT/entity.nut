@@ -432,7 +432,8 @@
         if(fireDelay != 0)
             return ScheduleEvent.Add(eventName, this.SetAlpha, fireDelay, [opacity], this)
         
-        EntFireByHandle(this.CBaseEntity, "Alpha", opacity.tostring())
+        // The "Alpha" input clamps, the keyvalue path doesn't: out-of-range values would wrap around.
+        this.__KeyValueFromInt("renderamt", math.clamp(opacity.tointeger(), 0, 255))
         this.SetUserData("alpha", opacity)
     }
 
@@ -465,7 +466,7 @@
         if(fireDelay != 0)
             return ScheduleEvent.Add(eventName, this.SetSkin, fireDelay, [skin], this)
         
-        EntFireByHandle(this.CBaseEntity, "skin", skin.tostring())
+        EntFireByHandle(this.CBaseEntity, "skin", skin.tointeger().tostring())
         this.SetUserData("skin", skin)
     }
 
@@ -550,7 +551,7 @@
         if(fireDelay != 0)
             return ScheduleEvent.Add(eventName, this.SetModelScale, fireDelay, [scaleValue], this)
         
-        EntFireByHandle(this.CBaseEntity, "AddOutput", "ModelScale " + scaleValue)
+        this.__KeyValueFromFloat("ModelScale", scaleValue.tofloat())
         this.SetUserData("ModelScale", scaleValue)
         // hack for entity update
         EntFireByHandle(this.CBaseEntity, "SetBodyGroup", "1"); EntFireByHandle(this.CBaseEntity, "SetBodyGroup", "0", 0.02)
