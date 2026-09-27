@@ -94,6 +94,26 @@ scriptEventsTests <- {
         local result = EventListener.Notify("unknownEvent"); // Notify an event that does not exist
         return assert(result == null); // Should return null for unknown event
     },
+
+    function vGameEventTriggerWithoutArgsTest() {
+        local counter = [0]; // wrapper
+        local gameEvent = VGameEvent("triggerWithoutArgsEvent");
+        gameEvent.AddAction(function() : (counter) {
+            counter[0]++;
+        });
+        gameEvent.Trigger();
+        gameEvent.Trigger();
+        return assert(counter[0] == 2);
+    },
+
+    function vGameEventArgsNotMutatedTest() {
+        local args = ["data"];
+        local gameEvent = VGameEvent("argsNotMutatedEvent");
+        gameEvent.AddAction(function(data) {});
+        gameEvent.Trigger(args);
+        gameEvent.ForceTrigger(args);
+        return assert(args.len() == 1);
+    },
 };
 
 // Run all tests

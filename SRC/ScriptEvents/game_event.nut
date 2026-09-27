@@ -50,16 +50,16 @@
     function SetFilter(filterFunc) null
     
     /* 
-     * Triggers the event if the trigger count allows and the filter function (if set) returns true. 
+     * Triggers the event if the trigger count allows and the filter function (if set) returns true.
      *
-     * @param {any} args - Optional arguments to pass to the actions function. 
+     * @param {array|null} args - Optional arguments to pass to the actions function.
     */
     function Trigger(args = null) null
-    
+
     /*
-     * Forces the event to trigger, ignoring the filter function and trigger count. 
-     * 
-     * @param {any} args - Optional arguments to pass to the actions function. 
+     * Forces the event to trigger, ignoring the filter function and trigger count.
+     *
+     * @param {array|null} args - Optional arguments to pass to the actions function.
     */
     function ForceTrigger(args = null) null
 }
@@ -96,11 +96,13 @@ function VGameEvent::SetFilter(filterFunc) {
  *
  * @param {array} args - Optional arguments to pass to the actions function. 
 */
-function VGameEvent::Trigger(args) {
+function VGameEvent::Trigger(args = null) {
     if(this.actions.len() == 0) {
         dev.trace("Attempt to run {}, which has no actions", this.eventName)
         return
     }
+    if(args == null) args = []
+    if(typeof args != "array") throw("VGameEvent::Trigger ("+this.eventName+"): Invalid argument type. Expected an 'array', but got " + typeof args + " [" + args + "]")
 
     if (this.triggerCount != 0 && (this.filterFunction == null || this.filterFunction(args))) {
         if (this.triggerCount > 0) {
@@ -118,11 +120,16 @@ function VGameEvent::Trigger(args) {
  * 
  * @param {array} args - Optional arguments to pass to the actions function. 
 */
-function VGameEvent::ForceTrigger(args) {
-    args.insert(0, this)
+function VGameEvent::ForceTrigger(args = null) {
+    if(args == null) args = []
+    if(typeof args != "array") throw("VGameEvent::ForceTrigger ("+this.eventName+"): Invalid argument type. Expected an 'array', but got " + typeof args + " [" + args + "]")
+
+    // Built separately so the caller's `args` stays untouched between triggers.
+    local callArgs = [this]
+    callArgs.extend(args)
     foreach(action in this.actions.iter()) {
         try {
-            action.acall(args)
+            action.acall(callArgs)
         } catch(err) {
             throw("VGameEvent Error: " + this.eventName + " has accured: " + err )
         }
