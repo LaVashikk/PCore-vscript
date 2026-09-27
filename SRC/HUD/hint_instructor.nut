@@ -115,11 +115,23 @@ function HUD::HintInstructor::SetBind(bind) {
  * Sets the positioning of the hint (on HUD or at target entity). 
  *
  * @param {number} value - 1 to display the hint on the HUD, 0 to display it at the target entity's position.
- * @param {CBaseEntity|pcapEntity|null} entity - The target entity to position the hint at (only used if value is 0). (optional) 
+ * @param {CBaseEntity|pcapEntity|string|null} ent - The target entity or its targetname. An unnamed entity gets a unique targetname, since `hint_target` works by name. (optional)
 */
 function HUD::HintInstructor::SetPositioning(value, ent = null) { // showOnHud
     this.CPcapEntity.SetKeyValue("hint_static", value)
-    this.CPcapEntity.SetKeyValue("hint_target", ent)
+
+    local targetName = ""
+    if(typeof ent == "string") {
+        targetName = ent
+    }
+    else if(ent) {
+        local target = entLib.FromEntity(ent)
+        if(!target || !target.IsValid()) throw("HUD.HintInstructor.SetPositioning: 'ent' is not a valid entity")
+        if(target.GetName() == "") target.SetUniqueName("hint_target")
+        targetName = target.GetName()
+    }
+
+    this.CPcapEntity.SetKeyValue("hint_target", targetName)
     return this
 }
 

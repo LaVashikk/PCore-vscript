@@ -384,7 +384,7 @@ Sets the positioning of the hint (on HUD or at target entity).
 **Parameters:**
 
 *   `value` (number): 1 to display the hint on the HUD, 0 to display it at the target entity's position.
-*   `ent` (CBaseEntity, pcapEntity, or null, optional): The target entity to position the hint at (only used if `value` is 0).
+*   `ent` (CBaseEntity, pcapEntity, string, or null, optional): The target entity or its targetname (used when `value` is 0). `hint_target` works by name, so an unnamed entity gets a unique targetname.
 
 **Returns:**
 
