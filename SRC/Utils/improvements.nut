@@ -9,12 +9,12 @@ if("GetPlayerEx" in getroottable()) {
 */
 ::_frametime <- FrameTime
 /*
- * Returns the current frame time, ensuring it is never zero. 
- * 
- * This function overrides the standard FrameTime function to prevent issues that can arise from zero frame times. 
- * If the frame time is zero, it returns a small default value (0.016). 
+ * Returns the current frame time, ensuring it is never zero.
  *
- * @returns {number} - The current frame time. 
+ * This function overrides the standard FrameTime function to prevent issues that can arise from zero frame times.
+ * If the frame time is zero, it returns a small default value (0.016).
+ *
+ * @returns {number} - The current frame time.
 */
 ::FrameTime <- function() {
     local tick = _frametime()
@@ -25,13 +25,13 @@ if("GetPlayerEx" in getroottable()) {
 
 ::_uniquestring <- UniqueString
 /*
- * Generates a unique string with the specified prefix. 
- * 
- * This function overrides the standard UniqueString function to include a prefix in the generated string. 
+ * Generates a unique string with the specified prefix.
  *
- * @param {string} prefix - The prefix to use for the unique string. (optional, default="u") 
- * @returns {string} - The generated unique string. 
-*/ 
+ * This function overrides the standard UniqueString function to include a prefix in the generated string.
+ *
+ * @param {string} prefix - The prefix to use for the unique string. (optional, default="u")
+ * @returns {string} - The generated unique string.
+*/
 ::UniqueString <- function(prefix = "u") {
     return prefix + "_" + _uniquestring().slice(0, -1)
 }
@@ -40,26 +40,26 @@ if("GetPlayerEx" in getroottable()) {
 /*
  * Wrapper for EntFireByHandle to handle PCapLib objects.
  *
- * This function overrides the standard EntFireByHandle function to handle pcapEntity objects and extract the underlying CBaseEntity objects. 
- * It also allows specifying an activator and caller entity. 
+ * This function overrides the standard EntFireByHandle function to handle pcapEntity objects and extract the underlying CBaseEntity objects.
+ * It also allows specifying an activator and caller entity.
  *
- * @param {CBaseEntity|pcapEntity} target - The target entity to trigger the input on. 
- * @param {string} action - The name of the input to trigger. 
+ * @param {CBaseEntity|pcapEntity} target - The target entity to trigger the input on.
+ * @param {string} action - The name of the input to trigger.
  * @param {string} value - The value to pass to the input. (optional)
  * @param {number} delay - The delay in seconds before triggering the input. (optional)
  * @param {CBaseEntity|pcapEntity} activator - The activator entity (the entity that triggered the input). (optional)
- * @param {CBaseEntity|pcapEntity} caller - The caller entity (the entity that called the function). (optional) 
+ * @param {CBaseEntity|pcapEntity} caller - The caller entity (the entity that called the function). (optional)
 */
 ::EntFireByHandle <- function(target, action, value = "", delay = 0, activator = null, caller = null, eventName = null) {
-    // Extract the underlying entity from the pcapEntity wrapper 
-    if (typeof target == "pcapEntity") 
+    // Extract the underlying entity from the pcapEntity wrapper
+    if (typeof target == "pcapEntity")
         target = target.CBaseEntity
     if (typeof activator == "pcapEntity")
         activator = activator.CBaseEntity
     if (typeof caller == "pcapEntity")
-        caller = target.CBaseEntity
+        caller = caller.CBaseEntity
 
-    if(!eventName) 
+    if(!eventName)
         return _EntFireByHandle(target, action, value, delay, activator, caller)
     ScheduleEvent.Add(eventName, _EntFireByHandle, delay, [target, action, value, 0, activator, caller])
 }
@@ -71,7 +71,7 @@ if("GetPlayerEx" in getroottable()) {
 * @returns {pcapEntity} - An extended player entity with additional methods.
 */
 ::GetPlayerEx <- function(index = 0) {
-    if(!IsMultiplayer()) 
+    if(!IsMultiplayer())
         return entLib.FromEntity(GetPlayer())
 
     if(index >= AllPlayers.len()) return null
