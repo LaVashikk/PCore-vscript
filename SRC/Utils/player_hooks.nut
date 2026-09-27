@@ -3,43 +3,43 @@ if("AllPlayers" in getroottable()) return
 ::AllPlayers <- ArrayEx()
 const PLAYER_DEATH_MARKER = -999
 
-/* 
- * Gets an array of all players in the game. 
+/*
+ * Gets an array of all players in the game.
  *
- * @returns {array} - An array of pcapEntity objects representing the players. 
+ * @returns {array} - An array of pcapEntity objects representing the players.
 */
 ::GetPlayers <- function() { // -> ArrayEx
     return AllPlayers
 }
 
 
-/* 
- * Tracks players joining the game and initializes their. 
+/*
+ * Tracks players joining the game and initializes their.
  *
- * This function iterates over all player entities in the game, attaching eye control 
- * and initializing new portal pairs for each new player. It calls OnPlayerJoin for 
+ * This function iterates over all player entities in the game, attaching eye control
+ * and initializing new portal pairs for each new player. It calls OnPlayerJoin for
  * each player added to the AllPlayers list.
 */
 ::TrackPlayerJoins <- function() {
     for(local player; player = entLib.FindByClassname("player", player);) {
         if(player.GetUserData("Eye")) continue // if already inited (AllPlayers.contains(player))
-        
+
         // Attach eye control to the new player
         AttachEyeControl(player)
         // Initialize a new portal pair for this player:
         InitPortalPair(AllPlayers.len())
-        
+
         AllPlayers.append(player)
         // Trigger join event
         OnPlayerJoined(player)
     }
 }
 
-/* 
- * Handles player events in MP, such as health checks and death events. 
+/*
+ * Handles player events in MP, such as health checks and death events.
  *
- * This function iterates over all players in the AllPlayers list, checking if 
- * each player is valid and updating their state accordingly. It calls OnDeath 
+ * This function iterates over all players in the AllPlayers list, checking if
+ * each player is valid and updating their state accordingly. It calls OnPlayerDeath
  * for dead players and schedules their respawn logic.
 */
 ::HandlePlayerEventsMP <- function() {
@@ -50,19 +50,19 @@ const PLAYER_DEATH_MARKER = -999
             playersToRemove.append(idx)
             continue
         }
-        
+
         if(player.GetHealth() > 0 || player.GetHealth() == PLAYER_DEATH_MARKER) continue
 
         OnPlayerDeath(player)
-        ScheduleEvent.AddInterval("global", _monitorRespawn, 0.3, 0, null, player)
+        ScheduleEvent.Add("global", _monitorRespawn, 0.3, [player])
         player.SetHealth(PLAYER_DEATH_MARKER)
     }
 
     if(playersToRemove.len() > 0) {
         for(local i = playersToRemove.len() - 1; i >= 0; i--) {
             AllPlayers.remove(playersToRemove[i])
-        }        
-    } 
+        }
+    }
 }
 
 ::HandlePlayerEventsSP <- function() {
@@ -72,20 +72,26 @@ const PLAYER_DEATH_MARKER = -999
     AllPlayers[0].SetHealth(PLAYER_DEATH_MARKER)
 }
 
-/* 
- * Monitors player respawn status. 
+/*
+ * Waits until a dead player respawns, then calls OnPlayerRespawn. Ends silently if the player leaves.
+ * A generator is fine here: this path only runs in multiplayer, which has no save/load.
+ *
+ * @param {pcapEntity} player - The dead player.
 */
-function _monitorRespawn() {
-    if(this.GetHealth() > 0)
-        return OnPlayerRespawn(this)
+function _monitorRespawn(player) {
+    while(player.IsValid() && player.GetHealth() <= 0) {
+        yield 0.3
+    }
+    if(player.IsValid())
+        OnPlayerRespawn(player)
 }
 
 
-/* 
- * Attaches eye control entities to all players in the game. 
+/*
+ * Attaches eye control entities to all players in the game.
  *
- * This function creates logic_measure_movement and info_target entities for each player to track their eye position and angles. 
- * It is called automatically at the initialization of the library and periodically in multiplayer games. 
+ * This function creates logic_measure_movement and info_target entities for each player to track their eye position and angles.
+ * It is called automatically at the initialization of the library and periodically in multiplayer games.
 */
 function AttachEyeControl(player) {
     if(player.GetUserData("Eye")) return
