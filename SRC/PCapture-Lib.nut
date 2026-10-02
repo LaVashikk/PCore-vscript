@@ -55,6 +55,7 @@ DoIncludeScript("PCapture-LIB/SRC/TracePlus/init.nut", rootScope)
 DoIncludeScript("PCapture-LIB/SRC/Animations/init.nut", rootScope)
 DoIncludeScript("PCapture-LIB/SRC/ScriptEvents/init.nut", rootScope)
 DoIncludeScript("PCapture-LIB/SRC/HUD/init.nut", rootScope)
+DoIncludeScript("PCapture-LIB/SRC/PhysControl/init.nut", rootScope)
 
 // Garbage collector for `PCapEntity::EntitiesScopes` and `PcapEntityCache` 
 ScheduleEvent.AddInterval("global", function() {
