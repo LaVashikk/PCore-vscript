@@ -48,6 +48,8 @@ Each module's section below links to the corresponding `readme.md` within the mo
     * [`Math/easing_equation.nut`](#matheasing_equationnut)
     * [`Math/quaternion.nut`](#mathquaternionnut)
     * [`Math/matrix.nut`](#mathmatrixnut)
+* [9. PhysControl](#9-physcontrol)
+    * [`PhysControl/controller.nut`](#physcontrolcontrollernut)
 
 
 ## 0. Console Commands
@@ -593,3 +595,31 @@ Provides matrix operations.
 | [`_sub(other: Matrix) -> Matrix`](SRC/Math/readme.md#_subother) | Matrix subtraction. |
 | [`IsEqual(other: Matrix) -> bool`](SRC/Math/readme.md#IsEqualother) | Matrix equality check. |
 | [`cmp(other: Matrix) -> number`](SRC/Math/readme.md#cmpother) | Compares matrix component sums. |
+
+## 9. [PhysControl](SRC/PhysControl/readme.md#physcontrol-module)
+
+Moves VPhysics props with real forces (they keep colliding and keep their momentum) using script-created `point_push` entities - nothing has to be placed in the map. See [how it works](SRC/PhysControl/readme.md#how-it-works).
+
+### [`PhysControl/controller.nut`](SRC/PhysControl/readme.md#physcontrolcontrollernut)
+
+| Class/Method | Description |
+|---|---|
+| [`Controller(entity: CBaseEntity\|pcapEntity)`](SRC/PhysControl/readme.md#physcontrolcontrollerentity) | Takes control of a VPhysics prop. |
+| [`SetTarget(point: Vector) -> PhysController`](SRC/PhysControl/readme.md#settargetpoint) | Pulls the hold point to a position (spring-damper). |
+| [`ClearTarget() -> PhysController`](SRC/PhysControl/readme.md#cleartarget) | Stops pulling to a position. |
+| [`SetHoldOffset(localOffset: Vector) -> PhysController`](SRC/PhysControl/readme.md#setholdoffsetlocaloffset) | Sets the hold point in local space. |
+| [`SetHoldPoint(worldPoint: Vector) -> PhysController`](SRC/PhysControl/readme.md#setholdpointworldpoint) | Sets the hold point from a world position. |
+| [`GetHoldPoint() -> Vector`](SRC/PhysControl/readme.md#getholdpoint) | Hold point in world space. |
+| [`SetTargetVelocity(velocity: Vector) -> PhysController`](SRC/PhysControl/readme.md#settargetvelocityvelocity) | Drives the prop towards a velocity. |
+| [`ClearTargetVelocity() -> PhysController`](SRC/PhysControl/readme.md#cleartargetvelocity) | Stops driving towards a velocity. |
+| [`SetAcceleration(acceleration: Vector) -> PhysController`](SRC/PhysControl/readme.md#setaccelerationacceleration) | Constant extra acceleration. |
+| [`SetStiffness(value: number) -> PhysController`](SRC/PhysControl/readme.md#setstiffnessvalue) | Spring frequency (rad/s). |
+| [`SetDamping(value: number) -> PhysController`](SRC/PhysControl/readme.md#setdampingvalue) | Damping ratio. |
+| [`SetMaxAcceleration(value: number) -> PhysController`](SRC/PhysControl/readme.md#setmaxaccelerationvalue) | Caps the applied acceleration. |
+| [`SetMaxSpeed(value: number) -> PhysController`](SRC/PhysControl/readme.md#setmaxspeedvalue) | Caps the speed while controlled. |
+| [`SetGravityCompensation(enabled: bool) -> PhysController`](SRC/PhysControl/readme.md#setgravitycompensationenabled) | Makes the prop weightless (default) or not. |
+| [`SetGravity(value: number) -> PhysController`](SRC/PhysControl/readme.md#setgravityvalue) | Gravity to cancel out. |
+| [`GetVelocity() -> Vector`](SRC/PhysControl/readme.md#getvelocity) | Tracked velocity of the prop. |
+| [`GetEntity() -> pcapEntity`](SRC/PhysControl/readme.md#getentity) | The controlled prop. |
+| [`IsValid() -> bool`](SRC/PhysControl/readme.md#isvalid) | False once released or the prop is gone. |
+| [`Release()`](SRC/PhysControl/readme.md#release) | Lets the prop go (it keeps its velocity). |

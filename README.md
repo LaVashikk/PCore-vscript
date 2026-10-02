@@ -33,6 +33,8 @@
 
 * **HUD Elements:** Create custom HUD elements like screen text (`ScreenText`) and instructor hints (`HintInstructor`) to provide feedback and guidance to players.
 
+* **Physics Control:** Move VPhysics props with real forces using `PhysControl.Controller` - pull them to a point, drive them at a velocity or make them weightless, while they keep colliding with the world, pushing other props and keeping their momentum. Perfect for physguns, tractor beams and hover platforms.
+
 ### And more! You can find the whole list [here](Short_Documentation.md)
 
 </details>
