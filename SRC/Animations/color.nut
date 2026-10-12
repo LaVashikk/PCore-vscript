@@ -1,12 +1,15 @@
+::__colorValueCalculator <- function(step, transitionFrames, v) {return math.lerp.color(v.startColor, v.endColor, v.easeFunc(step / transitionFrames))}
+::__colorPropertySetter <- function(ent, newColor) {ent.SetColor(newColor)}
+
 /*
  * Creates an animation that transitions the color of entities over time.
  *
- * @param {array|CBaseEntity|pcapEntity} entities - The entities to animate.
+ * @param {string|array|ArrayEx|List|CBaseEntity|pcapEntity} entities - The entities to animate.
  * @param {string|Vector} startColor - The starting color as a string (e.g., "255 0 0") or a Vector. 
  * @param {string|Vector} endColor - The ending color as a string or a Vector. 
  * @param {number} time - The duration of the animation in seconds. 
  * @param {table} animSetting - A table containing additional animation settings. (optional) 
- * @returns {number} The duration of the animation in seconds. 
+ * @returns {number} - The duration of the animation in seconds.
 */
 animate["ColorTransition"] <- function(entities, startColor, endColor, time, animSetting = {}) {
     if (typeof startColor != "Vector" && typeof startColor != "string")   throw("ColorTransition: 'startColor' argument must be a Vector, but got " + typeof startColor);
@@ -23,14 +26,18 @@ animate["ColorTransition"] <- function(entities, startColor, endColor, time, ani
 
     animate.applyAnimation(
         animSetting, 
-        function(step, transitionFrames, v) {return math.lerp.color(v.startColor, v.endColor, v.easeFunc(step / transitionFrames))},
-        function(ent, newColor) {ent.SetColor(newColor)},
+        __colorValueCalculator,
+        __colorPropertySetter,
         vars
     )
     
     return animSetting.delay
 }
 
+/*
+ * Real-time version of `animate.ColorTransition`: frames are computed as the animation plays,
+ * and `filterCallback` in `animSetting` can stop it. The parameters and return value are the same.
+*/
 animate.RT["ColorTransition"] <- function(entities, startColor, endColor, time, animSetting = {}) {
     if (typeof startColor != "Vector" && typeof startColor != "string")   throw("ColorTransition: 'startColor' argument must be a Vector, but got " + typeof startColor);
     if (typeof endColor != "Vector"   && typeof endColor != "string")   throw("ColorTransition: 'endColor' argument must be a Vector, but got " + typeof endColor);
@@ -46,8 +53,8 @@ animate.RT["ColorTransition"] <- function(entities, startColor, endColor, time, 
 
     animate.applyRTAnimation(
         animSetting, 
-        function(step, transitionFrames, v) {return math.lerp.color(v.startColor, v.endColor, v.easeFunc(step / transitionFrames))},
-        function(ent, newColor) {ent.SetColor(newColor)},
+        __colorValueCalculator,
+        __colorPropertySetter,
         vars
     )
     

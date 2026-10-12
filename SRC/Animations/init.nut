@@ -27,16 +27,18 @@
     scope = null;
 
     /*
-     * Constructor for an AnimEvent object. 
+     * Constructor for an AnimEvent object.
      *
-     * @param {string} name - A name of type animation
-     * @param {table} settings - A table containing animation settings.
-     * @param {array} entities - An array of entities to animate.
-     * @param {number} time - The duration of the animation in seconds.
+     * @param {string} name - The animation type, used in the default event name and in log messages.
+     * @param {table} table - The animation settings, see the Animation Settings Table in the Animations readme.
+     * @param {string|array|ArrayEx|List|CBaseEntity|pcapEntity} ents - The entities to animate, or a targetname; with a trailing `*` (e.g. "door_*") every matching entity is animated.
+     * @param {number} time - The duration of the animation in seconds. (optional, default=0)
     */
     constructor(name, table, ents, time = 0) {
         this.animName = name
-        this.entities = _GetEntities(ents, name)
+        local processAsRawEnt = macros.GetFromTable(table, "rawEnt", false)
+        
+        this.entities = processAsRawEnt ? ents : _GetEntities(ents, name)
         this.delay = time
         
         this.eventName = macros.GetFromTable(table, "eventName", UniqueString(name + "_anim"))
@@ -45,20 +47,21 @@
         this.scope = macros.GetFromTable(table, "scope", null)
         this.easeFunc = macros.GetFromTable(table, "ease", function(t) return t)
         this.filterCallback = macros.GetFromTable(table, "filterCallback", function(a,b,c,d,e) return null)
-        this.frameInterval = macros.GetFromTable(table, "frameInterval", FrameTime()) 
-        this.maxFrames = macros.GetFromTable(table, "fps", 60.0)
+        this.frameInterval = macros.GetFromTable(table, "frameInterval", FrameTime()).tofloat()
+        this.maxFrames = macros.GetFromTable(table, "fps", 60.0).tofloat()
         this.autoOptimization = macros.GetFromTable(table, "optimization", true)
 
         if(this.frameInterval == 0) throw("frameInterval is not to have 0")
 
-        // If the class points to the root table, it will result in a circular reference. This fixed here
+        // A root-table scope would create a circular reference, so null is stored instead.
         if(this.scope == getroottable()) {
             this.scope = null
         }
     } 
 
-    /* 
-     * Calls the output associated with the animation event. 
+    /*
+     * Schedules `output` in the animation's event after `delay + globalDelay` seconds, with `scope` as `this`.
+     * Does nothing if no output is set.
     */
     function CallOutput() {
         if(this.output)
@@ -68,7 +71,7 @@
     function _GetEntities(entities, actionName) {
         local type_of = typeof entities;
         if (type_of == "string") {
-            local foundEnts = List(); // todo or array?
+            local foundEnts = ArrayEx();
             if(entities.find("*") == null) {
                 local ent = entLib.FindByName(entities);
                 if (!ent) dev.warning(actionName + " AnimEvent: Could not find entity with name '" + entities + "'");
@@ -81,9 +84,13 @@
             }
             return foundEnts;
         }
-                
+
+        if (type_of == "List") {
+            entities = entities.toarray()
+            type_of = typeof entities;
+        }  
         
-        if (type_of == "array" || type_of == "ArrayEx" || type_of == "List") {
+        if (type_of == "array" || type_of == "ArrayEx") {
             foreach(idx, entity in entities) {
                 if (!entity || !entity.IsValid()) {
                     dev.warning(actionName + " AnimEvent: An invalid or null entity was found in the 'entities' list at index " + idx);
@@ -106,23 +113,22 @@
 
 /*
  * Applies an animation over a specified duration, calculating and setting new values for a property at each frame.
- * 
- * This function is used internally by the various animation functions to handle the animation process.
- * It calculates the new value for the property at each frame using the provided `valueCalculator` function and applies it to each entity using the `propertySetter` function.
+ *
+ * All frames are computed up front and scheduled in the `animInfo.eventName` event, one action per entity per frame.
+ * `animInfo.delay` is then set to the resulting duration, and the output is scheduled at the end.
  *
  * @param {AnimEvent} animInfo - The AnimEvent object containing the animation settings and entities.
  * @param {function} valueCalculator - A function that calculates the new value for the property at each frame.
  *    This function should take three arguments:
  *        * `step`: The current frame number (starting from 0).
- *        * `transitionFrames`: The total number of frames in the animation.
+ *        * `transitionFrames`: The number of the last frame, so `step / transitionFrames` goes from 0 to 1.
  *        * `vars`: Optional variables passed through the `vars` parameter.
  * @param {function} propertySetter - A function that sets the new value for the property on each entity.
  *    This function should take two arguments:
  *        * `entity`: The entity to apply the value to.
  *        * `newValue`: The calculated new value for the property.
  * @param {any} vars - Optional variable to pass to the `valueCalculator` function.
- *    This can be used to customize the animation behavior.
- * @param {number} transitionFrames - The total number of frames in the animation.
+ * @param {number} transitionFrames - The number of the last frame, rounded up.
  *    If 0, it's calculated based on `animInfo.delay` and `animInfo.frameInterval`. (default: 0)
 */
 animate["applyAnimation"] <- function(animInfo, valueCalculator, propertySetter, vars = null, transitionFrames = 0) {
@@ -141,8 +147,7 @@ animate["applyAnimation"] <- function(animInfo, valueCalculator, propertySetter,
 
         local newValue = valueCalculator(step, transitionFrames, vars)
         
-        local iter = typeof animInfo.entities == "List" ? animInfo.entities.iter() : animInfo.entities
-        foreach(ent in iter) {
+        foreach(ent in animInfo.entities) {
             local action = ScheduleAction(this, propertySetter, elapsed, [ent, newValue])
             actionsList.append(action)
         }
@@ -156,11 +161,9 @@ animate["applyAnimation"] <- function(animInfo, valueCalculator, propertySetter,
 }
 
 /*
- * Facade function for applying real-time animations in an asynchronous environment.
- * 
- * This function schedules the real-time animation to be processed using `_applyRTAnimation`.
- * The actual animation is executed without pre-calculating all the frames, 
- * which allows for more flexibility, especially when handling long animations or situations where the animation might need to be interrupted.
+ * Applies an animation in real time: after `globalDelay`, each frame is computed and applied when it is due
+ * (see `_processRTStep`) instead of being scheduled up front, and `filterCallback` can stop the animation.
+ * `animInfo.delay` is set to the animation duration.
  *
  * The arguments are the same as those for `applyAnimation`.
 */
@@ -180,58 +183,59 @@ animate["applyRTAnimation"] <- function(animInfo, valueCalculator, propertySette
         this
     )
 
-    // calc delay
     animInfo.delay = animInfo.frameInterval * transitionFrames
 }
 
 /*
- * Applies the animation in real-time, evaluating each frame as it occurs without pre-calculating.
- * 
- * This function works similarly to `applyAnimation`, but rather than calculating all the steps in advance,
- * it applies `propertySetter` in real-time for each frame. This is useful in cases where you might need
- * to interrupt or alter the animation at runtime using `filterCallback`, or if the animation is too long
- * for VSquirrel to process upfront.
+ * Starts a real-time animation scheduled by `applyRTAnimation`: rounds the frame count up and applies
+ * frame 0 through `_processRTStep`.
 */
 animate["_applyRTAnimation"] <- function(animInfo, valueCalculator, propertySetter, vars, transitionFrames) {
-    // Round up the number of transition frames
     transitionFrames = ceil(transitionFrames);
     if (developer() > 0) dev.trace("Started {} realtime animation ({})", animInfo.animName, animInfo.eventName);
 
-    // Helper function to process each animation step
-    function processStep(step, animInfo, valueCalculator, propertySetter, vars, transitionFrames) {
-        // Stop if all frames are processed
-        if (step > transitionFrames) {
-            animInfo.delay = 0;
-            animInfo.globalDelay = 0;
-            animInfo.CallOutput();
-            return;
-        }
+    animate._processRTStep(0, animInfo, valueCalculator, propertySetter, vars, transitionFrames);
+};
 
-        // Calculate the new property value
-        local newValue = valueCalculator(step, transitionFrames, vars);
-
-        // Stop if the filter callback signals to cancel the animation
-        if (animInfo.filterCallback(animInfo, newValue, transitionFrames, step, vars)) {
-            return;
-        }
-
-        // Apply the new value to all entities
-        foreach(ent in animInfo.entities)
-            propertySetter(ent, newValue)
-
-        // Move to the next step
-        ScheduleEvent.Add(
-            animInfo.eventName,
-            processStep,
-            animInfo.frameInterval,
-            [++step, animInfo, valueCalculator, propertySetter, vars, transitionFrames],
-            this  
-        );
+/*
+ * Applies one frame of a real-time animation and schedules the next one `frameInterval` later
+ * in the animation's event. After the last frame it fires the output.
+ * Before a frame is applied, `filterCallback(animInfo, newValue, transitionFrames, step, vars)` is called;
+ * if it returns true, the animation stops without firing the output.
+ *
+ * @param {number} step - The frame to apply, starting from 0.
+ * @param {AnimEvent} animInfo - The animation.
+ * @param {function} valueCalculator - Computes the value of a frame, see `applyAnimation`.
+ * @param {function} propertySetter - Applies the value to one entity, see `applyAnimation`.
+ * @param {any} vars - Passed to `valueCalculator` and `filterCallback`.
+ * @param {number} transitionFrames - The number of the last frame.
+*/
+animate["_processRTStep"] <- function(step, animInfo, valueCalculator, propertySetter, vars, transitionFrames) {
+    // Past the last frame: zero the delays so that CallOutput fires the output now.
+    if (step > transitionFrames) {
+        animInfo.delay = 0;
+        animInfo.globalDelay = 0;
+        animInfo.CallOutput();
+        return;
     }
 
-    // Start the animation
-    processStep(0, animInfo, valueCalculator, propertySetter, vars, transitionFrames);
-};
+    local newValue = valueCalculator(step, transitionFrames, vars);
+
+    if (animInfo.filterCallback(animInfo, newValue, transitionFrames, step, vars)) {
+        return;
+    }
+
+    foreach(ent in animInfo.entities)
+        propertySetter(ent, newValue)
+
+    ScheduleEvent.Add(
+        animInfo.eventName,
+        animate._processRTStep,
+        animInfo.frameInterval,
+        [++step, animInfo, valueCalculator, propertySetter, vars, transitionFrames],
+        animate
+    );
+}
 
 
 

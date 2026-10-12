@@ -1,3 +1,6 @@
+::__alphaValueCalculator <- function(step, steps, v) {return v.startOpacity + v.opacityDelta * v.easeFunc(step / steps)}
+::__alphaPropertySetter <- function(ent, newAlpha) {ent.SetAlpha(newAlpha)}
+
 /*
  * Creates an animation that transitions the alpha (opacity) of entities over time.
  * The alpha is only visible with a rendermode other than 0.
@@ -22,14 +25,18 @@ animate["AlphaTransition"] <- function(entities, startOpacity, endOpacity, time,
 
     animate.applyAnimation(
         animSetting, 
-        function(step, steps, v) {return v.startOpacity + v.opacityDelta * v.easeFunc(step / steps)},
-        function(ent, newAlpha) {ent.SetAlpha(newAlpha)},
+        __alphaValueCalculator,
+        __alphaPropertySetter,
         vars
     )
     
     return animSetting.delay
 }
 
+/*
+ * Real-time version of `animate.AlphaTransition`: frames are computed as the animation plays,
+ * and `filterCallback` in `animSetting` can stop it. The parameters and return value are the same.
+*/
 animate.RT["AlphaTransition"] <- function(entities, startOpacity, endOpacity, time, animSetting = {}) {
     if (typeof time != "integer" && typeof time != "float")  throw("AlphaTransition: 'time' argument must be a number, but got " + typeof time);
     if (typeof animSetting != "table")                      throw("AlphaTransition: 'animSetting' argument must be a table, but got " + typeof animSetting);
@@ -43,8 +50,8 @@ animate.RT["AlphaTransition"] <- function(entities, startOpacity, endOpacity, ti
 
     animate.applyRTAnimation(
         animSetting, 
-        function(step, steps, v) {return v.startOpacity + v.opacityDelta * v.easeFunc(step / steps)},
-        function(ent, newAlpha) {ent.SetAlpha(newAlpha)},
+        __alphaValueCalculator,
+        __alphaPropertySetter,
         vars
     )
     

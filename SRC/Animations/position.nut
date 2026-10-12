@@ -1,12 +1,15 @@
+::__positionValueCalculator <- function(step, steps, v) {return v.startPos + v.dist * v.easeFunc(step / steps)}
+::__positionPropertySetter <- function(ent, newPosition) {ent.CBaseEntity.SetAbsOrigin(newPosition)}
+
 /*
  * Creates an animation that transitions the position of entities over time.
  *
- * @param {array|CBaseEntity|pcapEntity} entities - The entities to animate.
+ * @param {string|array|ArrayEx|List|CBaseEntity|pcapEntity} entities - The entities to animate.
  * @param {Vector} startPos - The starting position. 
  * @param {Vector} endPos - The ending position. 
  * @param {number} time - The duration of the animation in seconds. 
  * @param {table} animSetting - A table containing additional animation settings. (optional) 
- * @returns {number} The duration of the animation in seconds. 
+ * @returns {number} - The duration of the animation in seconds.
 */
 animate["PositionTransitionByTime"] <- function(entities, startPos, endPos, time, animSetting = {}) {
     if (typeof startPos != "Vector")                        throw("PositionTransitionByTime: 'startPos' argument must be a Vector, but got " + typeof startPos);
@@ -23,14 +26,18 @@ animate["PositionTransitionByTime"] <- function(entities, startPos, endPos, time
 
     animate.applyAnimation(
         animSetting, 
-        function(step, steps, v) {return v.startPos + v.dist * v.easeFunc(step / steps)},
-        function(ent, newPosition) {ent.CBaseEntity.SetAbsOrigin(newPosition)},
+        __positionValueCalculator,
+        __positionPropertySetter,
         vars
     )
     
     return animSetting.delay
 }
 
+/*
+ * Real-time version of `animate.PositionTransitionByTime`: frames are computed as the animation plays,
+ * and `filterCallback` in `animSetting` can stop it. The parameters and return value are the same.
+*/
 animate.RT["PositionTransitionByTime"] <- function(entities, startPos, endPos, time, animSetting = {}) {
     if (typeof startPos != "Vector")                        throw("PositionTransitionByTime: 'startPos' argument must be a Vector, but got " + typeof startPos);
     if (typeof endPos != "Vector")                          throw("PositionTransitionByTime: 'endPos' argument must be a Vector, but got " + typeof endPos);
@@ -46,27 +53,25 @@ animate.RT["PositionTransitionByTime"] <- function(entities, startPos, endPos, t
 
     animate.applyRTAnimation(
         animSetting, 
-        function(step, steps, v) {return v.startPos + v.dist * v.easeFunc(step / steps)},
-        function(ent, newPosition) {ent.CBaseEntity.SetAbsOrigin(newPosition)},
+        __positionValueCalculator,
+        __positionPropertySetter,
         vars
     )
-    
+
     return animSetting.delay
 }
 
 
 /*
- * Creates an animation that transitions the position of entities over time based on a specified speed. 
+ * Creates an animation that transitions the position of entities over time based on a specified speed.
+ * The number of frames is the distance divided by `speed`, rounded up; each frame lasts `frameInterval`.
  *
- * @param {array|CBaseEntity|pcapEntity} entities - The entities to animate.
+ * @param {string|array|ArrayEx|List|CBaseEntity|pcapEntity} entities - The entities to animate.
  * @param {Vector} startPos - The starting position.
  * @param {Vector} endPos - The ending position.
- * @param {number} speed - The speed of the animation in units per tick.
+ * @param {number} speed - The speed in units per frame (per `frameInterval`, FrameTime() by default). Must be greater than 0.
  * @param {table} animSetting - A table containing additional animation settings. (optional)
- * 
- * The animation will calculate the time it takes to travel from the start position to the end position based on the specified speed. 
- * It will then use this time to create a smooth transition of the entities' positions over that duration.
- * @returns {number} The duration of the animation in seconds. 
+ * @returns {number} - The duration of the animation in seconds.
 */
 animate["PositionTransitionBySpeed"] <- function(entities, startPos, endPos, speed, animSetting = {}) {
     if (typeof startPos != "Vector")                        throw("PositionTransitionBySpeed: 'startPos' argument must be a Vector, but got " + typeof startPos);
@@ -83,8 +88,8 @@ animate["PositionTransitionBySpeed"] <- function(entities, startPos, endPos, spe
     
     animate.applyAnimation(
         animSetting, 
-        function(step, steps, v) {return v.startPos + v.dist * v.easeFunc(step / steps)},
-        function(ent, newPosition) {ent.CBaseEntity.SetAbsOrigin(newPosition)},
+        __positionValueCalculator,
+        __positionPropertySetter,
         vars,
         vars.dist.Length() / speed.tofloat() // steps
     )
@@ -92,6 +97,10 @@ animate["PositionTransitionBySpeed"] <- function(entities, startPos, endPos, spe
     return animSetting.delay
 } 
 
+/*
+ * Real-time version of `animate.PositionTransitionBySpeed`: frames are computed as the animation plays,
+ * and `filterCallback` in `animSetting` can stop it. The parameters and return value are the same.
+*/
 animate.RT["PositionTransitionBySpeed"] <- function(entities, startPos, endPos, speed, animSetting = {}) {
     if (typeof startPos != "Vector")                        throw("PositionTransitionBySpeed: 'startPos' argument must be a Vector, but got " + typeof startPos);
     if (typeof endPos != "Vector")                          throw("PositionTransitionBySpeed: 'endPos' argument must be a Vector, but got " + typeof endPos);
@@ -107,8 +116,8 @@ animate.RT["PositionTransitionBySpeed"] <- function(entities, startPos, endPos, 
     
     animate.applyRTAnimation(
         animSetting, 
-        function(step, steps, v) {return v.startPos + v.dist * v.easeFunc(step / steps)},
-        function(ent, newPosition) {ent.CBaseEntity.SetAbsOrigin(newPosition)},
+        __positionValueCalculator,
+        __positionPropertySetter,
         vars,
         vars.dist.Length() / speed.tofloat() // steps
     )

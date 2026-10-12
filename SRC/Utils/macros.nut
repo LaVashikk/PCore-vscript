@@ -461,8 +461,10 @@ macros["PointInBBox"] <- function(point, bMin, bMax) {
     )
 }
 
+
 /*
- * Checks if a point is within the defined bounds of the map using raycasts.
+ * Checks if a point is within the map: a TraceLine of 64000 units from the point along each of
+ * the six axis directions must hit something before 98% of its length.
  *
  * @param {Vector} point - The point to check.
  * @returns {boolean} - True if the point is within the bounds, false otherwise.
@@ -479,19 +481,22 @@ macros["PointInBounds"] <- function(point) {
     ) == false
 }
 
-
+__defaultValueCalculator <- function(step, steps, v) {return v.start + v.delta * v.easeFunc(step / steps)}
 /*
  * Creates a function that animates a property of one or more entities.
  * 
- * @param {string} name - The name of the animation. This name is used to identify the animation internally. 
- * @param {function} propertySetterFunc - A function that takes an entity and a value, and sets a property on that entity. This function will be called repeatedly during the animation to update the property.
- * @param {function} valueCalculator (optional) - A custom function that calculates the animated value for each step. 
- * @returns {function} - A function that can be used to start the animation. This function takes the following arguments:
- *   * `entities` {array|pcapEntity} - An array of entities or a single entity to animate.
- *   * `startValue` {any} - The starting value for the property.
+ * @param {string} name - The name of the animation. Used in error messages and in the default event name.
+ * @param {function} propertySetterFunc - Called as propertySetterFunc(entity, value) on every frame for each entity to set the property.
+ * @param {function} valueCalculator - Called as valueCalculator(step, steps, vars) to compute the value of a frame, where vars is
+ *   {start, delta, easeFunc} and delta is endValue - startValue. Default: start + delta * easeFunc(step / steps). (optional)
+ * @returns {function} - A function that starts the animation and returns its duration in seconds. It takes the following arguments:
+ *   * `entities` {string|array|ArrayEx|List|CBaseEntity|pcapEntity} - The entities to animate. See the `AnimEvent` constructor for details.
+ *   * `startValue` {any} - The starting value for the property. Must support `endValue - startValue`.
  *   * `endValue` {any} - The ending value for the property.
  *   * `time` {number} - The duration of the animation in seconds.
  *   * `animSetting` {table} (optional) - A table of additional animation settings. See the `AnimEvent` constructor for details.
+ *   It throws if `entities` is null or `time` is not positive.
+ * @throws - If propertySetterFunc is not a function, or valueCalculator is neither a function nor null.
 */
 macros["BuildAnimateFunction"] <- function(name, propertySetterFunc, valueCalculator = null) {
     if (typeof propertySetterFunc != "function") throw("macros.BuildAnimateFunction: 'propertySetterFunc' must be a function, but got " + typeof propertySetterFunc);
@@ -510,7 +515,7 @@ macros["BuildAnimateFunction"] <- function(name, propertySetterFunc, valueCalcul
 
         animate.applyAnimation(
             animSetting,
-            valueCalculator ? valueCalculator : function(step, steps, v) {return v.start + v.delta * v.easeFunc(step / steps)},
+            valueCalculator ? valueCalculator : __defaultValueCalculator,
             propertySetterFunc,
             varg
         ) 
@@ -520,9 +525,13 @@ macros["BuildAnimateFunction"] <- function(name, propertySetterFunc, valueCalcul
 }
 
 /*
- * Same as BuildAnimateFunction, only for creating RealTime animations.
+ * Same as BuildAnimateFunction, but the built function starts a real-time animation (animate.applyRTAnimation),
+ * which computes each frame when it is played instead of scheduling all frames upfront.
 */
 macros["BuildRTAnimateFunction"] <- function(name, propertySetterFunc, valueCalculator = null) {
+    if (typeof propertySetterFunc != "function") throw("macros.BuildAnimateFunction: 'propertySetterFunc' must be a function, but got " + typeof propertySetterFunc);
+    if (valueCalculator != null && typeof valueCalculator != "function") throw("macros.BuildAnimateFunction: 'valueCalculator' must be a function or null, but got " + typeof valueCalculator);
+    
     return function(entities, startValue, endValue, time, animSetting = {}) : (name, propertySetterFunc, valueCalculator) {
         local animSetting = AnimEvent(name, animSetting, entities, time) 
         local varg = {
@@ -533,7 +542,7 @@ macros["BuildRTAnimateFunction"] <- function(name, propertySetterFunc, valueCalc
 
         animate.applyRTAnimation(
             animSetting,
-            valueCalculator ? valueCalculator : function(step, steps, v) {return v.start + v.delta * v.easeFunc(step / steps)},
+            valueCalculator ? valueCalculator : __defaultValueCalculator,
             propertySetterFunc,
             varg
         ) 
