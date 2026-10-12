@@ -2163,6 +2163,8 @@ myPcapEntity.SetBBox(Vector(-10, -10, -10), Vector(10, 10, 10)) // Set a boundin
 ### `SetContext(name, value, fireDelay, eventName)`
 Sets a context value for the entity, which can be used for storing additional information or state associated with the entity.
 
+> **Note:** each distinct `name:value` string stays in the engine string pool until the map changes. Don't call it with a new unique value every frame; use `SetUserData` for fast-changing state.
+
 **Parameters:**
 
 * `name` (string): The name of the context value.

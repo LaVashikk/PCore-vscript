@@ -3,7 +3,7 @@
 /* 
  * Precaches a sound script or a list of sound scripts for later use.
  * 
- * @param {string|array|ArrayEx|List} sound_path - The path to the sound script or a list of paths.
+ * @param {string|array|ArrayEx|List} soundPath - The path to the sound script or a list of paths.
 */
 macros["Precache"] <- function(soundPath) {
     if(typeof soundPath == "string")
@@ -15,12 +15,12 @@ macros["Precache"] <- function(soundPath) {
 
 
 /* 
- * Gets a value from a table, returning a default value if the key is not found. 
+ * Gets a value from a table, returning a default value if the key is missing or its value is null.
  *
  * @param {table} table - The table to retrieve the value from. 
  * @param {any} key - The key of the value to get. 
- * @param {any} defaultValue - The default value to return if the key is not found. (optional) 
- * @returns {any} - The value associated with the key, or the default value if the key is not found. 
+ * @param {any} defaultValue - The value to return if the key is missing or its value is null. (optional, default null)
+ * @returns {any} - The value associated with the key, or the default value.
 */ 
 macros["GetFromTable"] <- function(table, key, defaultValue = null) {
     if(key in table && table[key] != null) 
@@ -82,12 +82,13 @@ macros["PrintIter"] <- function(iterable) {
 }
 
 /*
- * Generates a list of numbers within a specified range.
+ * Generates a list of numbers from start to end, inclusive.
  *
  * @param {number} start - The starting value of the range.
- * @param {number} end - The ending value of the range.
- * @param {number} [step=1] - The increment between each value in the range.
+ * @param {number} end - The last value of the range (inclusive).
+ * @param {number} step - The increment between values, must be positive. (optional, default 1)
  * @returns {List} - A list of numbers within the specified range.
+ * @throws - If step is 0.
 */ 
 macros["Range"] <- function(start, end, step = 1) {
     if(step == 0) throw("macros.Range: step must be non-zero");
@@ -100,12 +101,13 @@ macros["Range"] <- function(start, end, step = 1) {
 }
 
 /*
- * Generates an iterator that yields numbers within a specified range.
+ * Generates an iterator that yields numbers from start to end, inclusive.
  *
  * @param {number} start - The starting value of the range.
- * @param {number} end - The ending value of the range.
- * @param {number} [step=1] - The increment between each value in the range.
+ * @param {number} end - The last value of the range (inclusive).
+ * @param {number} step - The increment between values, must be positive. (optional, default 1)
  * @yields {number} - The next number in the range.
+ * @throws - If step is 0.
 */ 
 macros["RangeIter"] <- function(start, end, step = 1) {
     if(step == 0) throw("macros.RangeIter: step must be non-zero");
@@ -117,11 +119,11 @@ macros["RangeIter"] <- function(start, end, step = 1) {
 }
 
 /*
- * Searches for a matching string in an array, considering wildcard '*'.
+ * Finds the first element of `iter` that is a substring of `match`.
  *
- * @param {array|ArrayEx} iter - The array to search in.
- * @param {string} match - The string to search for.
- * @returns {int|null} - The index of the first matching element, or null if not found. 
+ * @param {array|ArrayEx|List} iter - The substrings (masks) to look for.
+ * @param {string} match - The string to search in.
+ * @returns {int|null} - The index of the first element found in `match`, or null if there is none.
  *           If the first element of iter is '*', returns 0. 
 */
 macros["MaskSearch"] <- function(iter, match) {
@@ -136,13 +138,14 @@ macros["MaskSearch"] <- function(iter, match) {
 }
 
 /*
- * Prints a formatted message to the console.
+ * Formats a message: replaces each `{}` placeholder with the next argument, converted to a string.
  * 
  * @param {string} msg - The message string containing `{}` placeholders.
- * @param {any} vargs... - Additional arguments to substitute into the placeholders.
+ * @param {...any} vargv - The values for the placeholders, in order.
+ * @returns {string} - The formatted message.
+ * @throws - If the number of placeholders differs from the number of arguments.
 */
 macros["format"] <- function(msg, ...) {
-    // If you are sure of what you are doing, you don't have to use it
     local subst_count = 0;
     for (local i = 0; i < msg.len() - 1; i++) {
         if (msg.slice(i, i+2) == "{}") {
@@ -150,7 +153,7 @@ macros["format"] <- function(msg, ...) {
         }
     }
 
-    if (subst_count != vargc)
+    if(subst_count != vargc)
         throw("Discrepancy between the number of arguments and substitutions")
 
     local args = array(vargc)
@@ -178,13 +181,10 @@ macros["format"] <- function(msg, ...) {
 }
 
 /*
- * Prints a formatted message to the console.
- *
- * This function is similar to dev.format, but it automatically calls printl 
- * with the formatted message. 
+ * Formats a message with macros.format and prints it to the console.
  *
  * @param {string} msg - The message string containing `{}` placeholders. 
- * @param {any} vargs... - Additional arguments to substitute into the placeholders. 
+ * @param {...any} vargv - The values for the placeholders, in order.
 */
 macros["fprint"] <- function(msg, ...) {
     local args = array(vargc + 2)
@@ -197,14 +197,13 @@ macros["fprint"] <- function(msg, ...) {
 
     printl(macros.format.acall(args))
 }
-::dev.fprint <- macros.fprint // fallback for earlier version of the lib
+::dev.fprint <- macros.fprint // legacy alias from earlier versions of the lib
 
 /*
- * Compiles a function from a string representation.
- * This function is similar to dev.format.
+ * Formats a string with macros.format and compiles the result into a function.
  *
- * @param {string} funcBody - The body of the function to be compiled.
- * @param {any} vargs... - Additional arguments to substitute into the placeholders.
+ * @param {string} funcBody - The body of the function to be compiled, with `{}` placeholders.
+ * @param {...any} vargv - The values for the placeholders, in order.
  * @returns {function} - The compiled function.
 */
 macros["CompileFromStr"] <- function(funcBody, ...) {
@@ -234,8 +233,9 @@ macros["GetDist"] <- function(vec1, vec2) {
  * Converts a string to a Vector object.
  * 
  * @param {string} str - The string representation of the vector, e.g., "x y z".
- * @param {string} sep - The separator string.
+ * @param {string} sep - The separator characters; each of them splits the string. (optional, default " ")
  * @returns {Vector} - The converted vector.
+ * @throws - If the string does not split into exactly 3 numbers.
 */
 macros["StrToVec"] <- function(str, sep = " ") {
     local str_arr = split(str, sep)
@@ -254,7 +254,8 @@ macros["StrToVec"] <- function(str, sep = " ") {
  * Converts a Vector object to a string representation.
  * 
  * @param {Vector} vec - The vector to convert. 
- * @returns {string} - The separator string.
+ * @param {string} sep - The separator between the components. (optional, default " ")
+ * @returns {string} - The string "x<sep>y<sep>z".
 */
 macros["VecToStr"] <- function(vec, sep = " ") {
     return vec.x + sep + vec.y + sep + vec.z 
@@ -282,7 +283,8 @@ macros["CreateAlias"] <- function(key, action) {
 }
 
 /*
- * Creates a primitive console command.
+ * Creates a console command: an alias named `key` that runs `command`,
+ * plus an empty setinfo variable with the same name.
  *
  * @param {string} key - The name of the command.
  * @param {string} command - The command to be executed.
@@ -294,6 +296,10 @@ macros["CreateAlias"] <- function(key, action) {
 
 /*
  * Checks if two values are equal, handling different data types.
+ *
+ * If either value is a CBaseEntity, their entity indices are compared. Floats are compared rounded to
+ * 3 decimal places, Vectors with math.vector.IsEqual (which rounds both in place), Quaternion, Matrix
+ * and pcapEntity values with their IsEqual method, other values with ==.
  *
  * @param {any} val1 - The first value.
  * @param {any} val2 - The second value.
@@ -321,9 +327,11 @@ macros["IsEqual"] <- function(val1, val2) {
 
 /*
  * Creates a deep copy of a container (table, array, ArrayEx, or List).
+ * Nested containers are copied recursively; any other value, including class instances and Vectors, is shared.
  * Note: The container must not have circular references.
  *
  * @param {table|array|ArrayEx|List} container - The container to be copied.
+ * @param {any} _ - Unused. It lets DeepCopy be passed to map(), which also passes the index.
  * @returns {table|array|ArrayEx|List} - A deep copy of the container.
 */
 macros["DeepCopy"] <- function(container, _ = null) { 
@@ -348,10 +356,10 @@ macros["DeepCopy"] <- function(container, _ = null) {
 
 
 /*
- * Gets the prefix of an entity name. 
+ * Gets the prefix of an entity name: everything up to and including the last "-".
  *
  * @param {string} name - The entity name. 
- * @returns {string} - The prefix of the entity name, or the original name if no "-" is found. 
+ * @returns {string} - The prefix of the entity name ("door-" for "door-1"), or the original name if no "-" is found.
 */
 macros["GetPrefix"] <- function(name) {
     local parts = split(name, "-")
@@ -365,10 +373,10 @@ macros["GetPrefix"] <- function(name) {
 
 
 /* 
- * Gets the postfix of an entity name. 
+ * Gets the postfix of an entity name: everything from the first "-" on.
  *
  * @param {string} name - The entity name. 
- * @returns {string} - The postfix of the entity name, or the original name if no "-" is found. 
+ * @returns {string} - The postfix of the entity name ("-1" for "door-1"), or the original name if no "-" is found.
 */
 macros["GetPostfix"] <- function(name) {
     local parts = split(name, "-")
@@ -394,13 +402,13 @@ macros["GetEyeEndpos"] <- function(player, distance) {
 }
 
 /*
- * Gets one vertex of the bounding box based on x, y, z bounds.
+ * Gets one vertex of a bounding box: the point (x.x, y.y, z.z) rotated by `ang` around the origin, not translated.
  * 
- * @param {Vector} x - The x bounds.
- * @param {Vector} y - The y bounds.  
- * @param {Vector} z - The z bounds.
- * @param {Vector} ang - The angle vector.
- * @returns {Vector} - The vertex.
+ * @param {Vector} x - The bound (mins or maxs) that gives the x coordinate.
+ * @param {Vector} y - The bound (mins or maxs) that gives the y coordinate.
+ * @param {Vector} z - The bound (mins or maxs) that gives the z coordinate.
+ * @param {Vector} ang - The Euler angles in degrees (pitch, yaw, roll) to rotate the vertex by.
+ * @returns {Vector} - The rotated vertex, relative to the entity origin.
 */
 macros["GetVertex"] <- function(x, y, z, ang) {
     return math.vector.rotate(Vector(x.x, y.y, z.z), ang)
@@ -412,7 +420,7 @@ macros["GetVertex"] <- function(x, y, z, ang) {
  * @param {Vector} v1 - The first vertex of the triangle.
  * @param {Vector} v2 - The second vertex of the triangle.
  * @param {Vector} v3 - The third vertex of the triangle.
- * @returns {table} - A table containing the origin and vertices of the triangle.
+ * @returns {table} - A table with `origin` (the centroid of the triangle) and `vertices` ([v1, v2, v3]).
 */
 macros["GetTriangle"] <- function(v1, v2, v3) {
     return {
@@ -428,7 +436,7 @@ macros["GetTriangle"] <- function(v1, v2, v3) {
  * @param {Vector} v2 - The second vertex. 
  * @param {Vector} v3 - The third vertex. 
  * @param {Vector} v4 - The fourth vertex.
- * @returns {table} - A table representing the rectangle with 'origin' and 'vertices' properties. 
+ * @returns {table} - A table with `origin` (the average of the vertices) and `vertices` ([v1, v2, v3, v4]).
 */
 macros["GetRectangle"] <- function(v1, v2, v3, v4) {
     return {
@@ -438,7 +446,7 @@ macros["GetRectangle"] <- function(v1, v2, v3, v4) {
 }
 
 /*
- * Checks if a point is inside a bounding box. 
+ * Checks if a point is inside a bounding box. Points on the boundary count as inside.
  * 
  * @param {Vector} point - The point to check.
  * @param {Vector} bMin - The minimum corner of the bounding box. 

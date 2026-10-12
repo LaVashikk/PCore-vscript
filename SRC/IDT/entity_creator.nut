@@ -1,13 +1,15 @@
+/*
+ * Creates, finds and wraps entities. Entities are returned as pcapEntity wrappers, one cached wrapper per entity.
+*/
 ::entLib <- class {
     /*
-     * Creates an entity of the specified classname with the provided keyvalues.
+     * Creates an entity of the specified classname and applies the keyvalues through SetKeyValue.
      *
      * @param {string} classname - The classname of the entity.
-     * @param {table} keyvalues - The key-value pairs for the entity.
+     * @param {table} keyvalues - The key-value pairs for the entity. (optional)
      * @returns {pcapEntity} - The created entity object.
     */
     function CreateByClassname(classname, keyvalues = {}) {
-        // Validate parameters
         if (typeof classname != "string")
             throw("CreateByClassname: 'classname' must be a string, got " + typeof classname)
         if (classname == "")
@@ -30,8 +32,8 @@
 
 
     /*
-     * Creates a prop entity with the specified parameters.
-     * 
+     * Creates a prop through the native CreateProp and applies the keyvalues through SetKeyValue.
+     *
      * @param {string} classname - The classname of the prop.
      * @param {Vector} origin - The initial origin (position) of the prop.
      * @param {string} modelname - The model name of the prop.
@@ -40,7 +42,6 @@
      * @returns {pcapEntity} - The created prop entity object.
     */
     function CreateProp(classname, origin, modelname, activity = 1, keyvalues = {}) {
-        // Validate parameters
         if (typeof classname != "string")
             throw("CreateProp: 'classname' must be a string, got " + typeof classname)
         if (classname == "")
@@ -71,10 +72,11 @@
     
 
     /*
-     * Wraps a CBaseEntity object in a pcapEntity object.
+     * Wraps an entity handle in a pcapEntity, reusing the cached wrapper if there is one.
+     * Throws if the argument is not an entity handle, a pcapEntity or null.
      *
-     * @param {CBaseEntity} CBaseEntity - The CBaseEntity object to wrap.
-     * @returns {pcapEntity} - The wrapped entity object.
+     * @param {CBaseEntity|pcapEntity|null} CBaseEntity - The entity to wrap. A pcapEntity is returned as is.
+     * @returns {pcapEntity|null} - The wrapped entity object, or null if the entity is null or invalid.
     */
     function FromEntity(CBaseEntity) {
         if (CBaseEntity == null)
@@ -89,14 +91,13 @@
 
     
     /*
-     * Finds an entity with the specified classname.
+     * Finds the next entity with the specified classname.
      *
      * @param {string} classname - The classname to search for.
-     * @param {CBaseEntity|pcapEntity} start_ent - The starting entity to search within. (optional)
+     * @param {CBaseEntity|pcapEntity} start_ent - The entity to continue the search after, or null to start from the beginning. (optional)
      * @returns {pcapEntity|null} - The found entity object, or null if not found.
     */
     function FindByClassname(classname, start_ent = null) {
-        // Validate parameters
         if (typeof classname != "string")
             throw("FindByClassname: 'classname' must be a string, got " + typeof classname)
         if (classname == "")
@@ -115,16 +116,15 @@
 
 
     /*
-     * Finds an entity with the specified classname within a given radius from the origin.
+     * Finds the next entity with the specified classname within a given radius from the origin.
      *
      * @param {string} classname - The classname to search for.
      * @param {Vector} origin - The origin position.
-     * @param {number} radius - The search radius.
-     * @param {CBaseEntity|pcapEntity} start_ent - The starting entity to search within. (optional)
+     * @param {number} radius - The search radius, greater than 0.
+     * @param {CBaseEntity|pcapEntity} start_ent - The entity to continue the search after, or null to start from the beginning. (optional)
      * @returns {pcapEntity|null} - The found entity object, or null if not found.
     */
     function FindByClassnameWithin(classname, origin, radius, start_ent = null) {
-        // Validate parameters
         if (typeof classname != "string")
             throw("FindByClassnameWithin: 'classname' must be a string, got " + typeof classname)
         if (classname == "")
@@ -148,15 +148,14 @@
     }
     
     
-    /* 
-     * Finds an entity with the specified targetname within the given starting entity.
+    /*
+     * Finds the next entity with the specified targetname.
      *
      * @param {string} targetname - The targetname to search for.
-     * @param {CBaseEntity|pcapEntity} start_ent - The starting entity to search within. (optional)
+     * @param {CBaseEntity|pcapEntity} start_ent - The entity to continue the search after, or null to start from the beginning. (optional)
      * @returns {pcapEntity|null} - The found entity object, or null if not found.
     */
     function FindByName(targetname, start_ent = null) {
-        // Validate parameters
         if (typeof targetname != "string")
             throw("FindByName: 'targetname' must be a string, got " + typeof targetname)
         if (targetname == "")
@@ -175,16 +174,15 @@
 
 
     /*
-     * Finds an entity with the specified targetname within a given radius from the origin.
+     * Finds the next entity with the specified targetname within a given radius from the origin.
      *
      * @param {string} targetname - The targetname to search for.
      * @param {Vector} origin - The origin position.
-     * @param {number} radius - The search radius.
-     * @param {CBaseEntity|pcapEntity} start_ent - The starting entity to search within. (optional)
+     * @param {number} radius - The search radius, greater than 0.
+     * @param {CBaseEntity|pcapEntity} start_ent - The entity to continue the search after, or null to start from the beginning. (optional)
      * @returns {pcapEntity|null} - The found entity object, or null if not found.
     */
     function FindByNameWithin(targetname, origin, radius, start_ent = null) {
-        // Validate parameters
         if (typeof targetname != "string")
             throw("FindByNameWithin: 'targetname' must be a string, got " + typeof targetname)
         if (targetname == "")
@@ -208,15 +206,14 @@
     }
 
 
-    /* 
-     * Finds an entity with the specified model within the given starting entity.
+    /*
+     * Finds the next entity with the specified model.
      *
      * @param {string} model - The model to search for.
-     * @param {CBaseEntity|pcapEntity} start_ent - The starting entity to search within. (optional)
+     * @param {CBaseEntity|pcapEntity} start_ent - The entity to continue the search after, or null to start from the beginning. (optional)
      * @returns {pcapEntity|null} - The found entity object, or null if not found.
     */
     function FindByModel(model, start_ent = null) {
-        // Validate parameters
         if (typeof model != "string")
             throw("FindByModel: 'model' must be a string, got " + typeof model)
         if (model == "")
@@ -235,16 +232,15 @@
 
 
     /*
-     * Finds an entity with the specified model within a given radius from the origin.
+     * Finds the next entity with the specified model within a given radius from the origin.
      *
      * @param {string} model - The model to search for.
      * @param {Vector} origin - The origin position.
-     * @param {number} radius - The search radius.
-     * @param {CBaseEntity|pcapEntity} start_ent - The starting entity to search within. (optional)
+     * @param {number} radius - The search radius, greater than 0.
+     * @param {CBaseEntity|pcapEntity} start_ent - The entity to continue the search after, or null to start from the beginning. (optional)
      * @returns {pcapEntity|null} - The found entity object, or null if not found.
     */
     function FindByModelWithin(model, origin, radius, start_ent = null) {
-        // Validate parameters
         if (typeof model != "string")
             throw("FindByModelWithin: 'model' must be a string, got " + typeof model)
         if (model == "")
@@ -276,15 +272,14 @@
 
 
     /*
-     * Finds entities within a sphere defined by the origin and radius.
+     * Finds the next entity within a sphere defined by the origin and radius.
      *
      * @param {Vector} origin - The origin position of the sphere.
-     * @param {number} radius - The radius of the sphere.
-     * @param {CBaseEntity|pcapEntity} start_ent - The starting entity to search within. (optional)
+     * @param {number} radius - The radius of the sphere, greater than 0.
+     * @param {CBaseEntity|pcapEntity} start_ent - The entity to continue the search after, or null to start from the beginning. (optional)
      * @returns {pcapEntity|null} - The found entity object, or null if not found.
     */
     function FindInSphere(origin, radius, start_ent = null) {
-        // Validate parameters
         if (typeof origin != "Vector")
             throw("FindInSphere: 'origin' must be a Vector, got " + typeof origin)
         if (typeof radius != "integer" && typeof radius != "float")
@@ -304,11 +299,11 @@
     }
 
 
-    /* 
-     * Initializes an entity object.
+    /*
+     * Returns the cached pcapEntity of an entity handle, creating and caching one if there is none.
      *
-     * @param {CBaseEntity} entity - The entity object.
-     * @returns {pcapEntity|null} - A new entity object or null if invalid.
+     * @param {CBaseEntity|null} CBaseEntity - The entity handle.
+     * @returns {pcapEntity|null} - The wrapper, or null if the handle is null or invalid.
     */
     function __init(CBaseEntity) {
         if (!CBaseEntity || !CBaseEntity.IsValid())

@@ -1,7 +1,9 @@
 const LegacyJumpPercent = 0.25
 
 /*
- * TODO
+ * The previous bbox analyzer, used by TracePlus.Bbox when USE_LEGACY_BBOXCAST_ANALYZER is true.
+ * It samples points along the ray instead of intersecting boxes analytically, and does not take insideTestPos.
+ * The constructor runs the trace and stores the result in `hitpos` and `hitent`.
 */
 ::LegacyBboxAnalyzer <- class {
     settings = null;
@@ -27,11 +29,13 @@ const LegacyJumpPercent = 0.25
 }
 
 /*
- * Performs a precise trace line analysis. 
+ * Performs the legacy bbox trace.
  *
- * This method subdivides the trace into smaller segments and checks for entity collisions along the way, 
- * considering entity priorities and ignore settings.
- * 
+ * TraceLine gives the world hit; the part of the ray before it is split into 4 segments. For each segment,
+ * the nearby entities that pass shouldHitEntity are collected, then points 2 * depthAccuracy units apart
+ * are tested against their world AABBs: the first point inside a box is the hit, refined by bisection
+ * if bynaryRefinement is set. An entity whose bbox contains startPos is skipped for this trace.
+ *
  * @param {Vector} startPos - The start position of the trace.
  * @param {Vector} endPos - The end position of the trace.
  * @param {array|CBaseEntity|null} ignoreEntities - A list of entities or a single entity to ignore during the trace. 

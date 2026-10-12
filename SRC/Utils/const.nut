@@ -7,7 +7,7 @@ const COLLISION_GROUP_DEBRIS = 1
 // Same as debris, but hits triggers.
 const COLLISION_GROUP_DEBRIS_TRIGGER = 2 
 
-// Like DEBRIS, but doesn't collide with same group.
+// Collides with everything except other interactive debris or debris.
 const COLLISION_GROUP_INTERACTIVE_DEBRIS = 3
 
 // Collides with everything except interactive debris or debris.

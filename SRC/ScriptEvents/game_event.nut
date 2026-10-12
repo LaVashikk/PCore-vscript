@@ -1,25 +1,25 @@
 /*
- * Represents a custom "game event". 
- * 
- * This class allows you to create and manage custom "game events" with triggers, filters, and actions. 
+ * Represents a custom "game event".
+ *
+ * Triggering the event runs its actions, subject to an optional filter and a trigger count.
+ * Every event is registered in AllScriptEvents under its name, where EventListener finds it.
 */
 ::VGameEvent <- class {
     // The name of the event.  
     eventName = null; 
     // The number of times the event can be triggered before it becomes inactive (-1 for unlimited triggers). 
     triggerCount = null; 
-    // The actions to be performed when the event is triggered. 
+    // List of action functions, run in the order they were added.
     actions = null; 
     // A filter function to check conditions before triggering the event.  
     filterFunction = null; 
 
-    // Constructor for initializing the VGameEvent
     /*
-     * Constructor for a VGameEvent object.
+     * Constructor for a VGameEvent object. Registers it in AllScriptEvents, replacing an event with the same name.
      *
      * @param {string} eventName - The name of the event.
-     * @param {number} triggerCount - The number of times the event can be triggered (-1 for unlimited). (optional, default=-1) 
-     * @param {function} actionsList - The action to be performed when the event is triggered. (optional) 
+     * @param {number} triggerCount - The number of times the event can be triggered (-1 for unlimited). (optional, default=-1)
+     * @param {function|null} actionsList - A single action to add. (optional)
     */
     constructor(eventName, triggerCount = -1, actionsList = null) {
         this.eventName = eventName
@@ -31,70 +31,60 @@
         AllScriptEvents[eventName] <- this
     }
 
-    /* 
-     * Adds the action function for the event. 
-     *
-     * @param {function} actionFunction - The function to execute when the event is triggered. 
-    */
+    // Adds an action.
     function AddAction(actionFunction) null
 
+    // Removes all actions.
     function ClearActions() null
 
-    /* 
-     * Sets the filter function for the event. 
-     *
-     * The filter function should return true if the event should be triggered, false otherwise. 
-     *
-     * @param {function} filterFunction - The function to use for filtering trigger conditions. 
-    */
+    // Sets the filter that decides whether Trigger runs the actions.
     function SetFilter(filterFunc) null
     
-    /* 
-     * Triggers the event if the trigger count allows and the filter function (if set) returns true.
-     *
-     * @param {array|null} args - Optional arguments to pass to the actions function.
-    */
+    // Runs the actions if the trigger count and the filter allow it.
     function Trigger(args = null) null
 
-    /*
-     * Forces the event to trigger, ignoring the filter function and trigger count.
-     *
-     * @param {array|null} args - Optional arguments to pass to the actions function.
-    */
+    // Runs the actions, ignoring the filter and the trigger count.
     function ForceTrigger(args = null) null
 }
 
 
 
 /*
- * Add the action function for the event. 
+ * Adds an action. Actions run in the order they were added, with the event as `this`
+ * and the trigger args as their parameters.
  *
- * @param {function} actionFunction - The function to execute when the event is triggered. 
+ * @param {function} actionFunction - The action to add.
 */
 function VGameEvent::AddAction(actionFunction) {
     this.actions.append(actionFunction)
 }
 
+/*
+ * Removes all actions.
+*/
 function VGameEvent::ClearActions() {
     this.actions.clear()
 }
 
-/* 
- * Sets the filter function for the event. 
+/*
+ * Sets the filter function for the event.
  *
- * The filter function should return true if the event should be triggered, false otherwise. 
+ * Trigger calls the filter with the trigger args array as its only parameter (the event is `this`)
+ * and runs the actions only if it returns true. ForceTrigger ignores it.
  *
- * @param {function} filterFunction - The function to use for filtering trigger conditions. 
+ * @param {function|null} filterFunc - The filter, or null to remove it.
 */
 function VGameEvent::SetFilter(filterFunc) {
     this.filterFunction = filterFunc
 }
 
 
-/* 
- * Triggers the event if the trigger count allows and the filter function (if set) returns true. 
+/*
+ * Triggers the event if the trigger count allows and the filter function (if set) returns true.
+ * A successful trigger decrements a positive trigger count. An event without actions does nothing.
  *
- * @param {array} args - Optional arguments to pass to the actions function. 
+ * @param {array|null} args - Arguments passed to each action. (optional)
+ * @returns {boolean|null} - True if the actions ran, null otherwise.
 */
 function VGameEvent::Trigger(args = null) {
     if(this.actions.len() == 0) {
@@ -116,9 +106,13 @@ function VGameEvent::Trigger(args = null) {
 
 
 /*
- * Forces the event to trigger, ignoring the filter function and trigger count. 
- * 
- * @param {array} args - Optional arguments to pass to the actions function. 
+ * Forces the event to trigger, ignoring the filter function and trigger count.
+ *
+ * Each action is called with the event as `this` and the elements of `args` as its parameters.
+ * An error in an action stops the remaining actions and is rethrown with the event name.
+ *
+ * @param {array|null} args - Arguments passed to each action. (optional)
+ * @returns {boolean} - Always true.
 */
 function VGameEvent::ForceTrigger(args = null) {
     if(args == null) args = []

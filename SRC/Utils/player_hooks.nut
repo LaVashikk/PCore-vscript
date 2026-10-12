@@ -4,43 +4,39 @@ if("AllPlayers" in getroottable()) return
 const PLAYER_DEATH_MARKER = -999
 
 /*
- * Gets an array of all players in the game.
+ * Gets all tracked players.
  *
- * @returns {array} - An array of pcapEntity objects representing the players.
+ * @returns {ArrayEx} - The `AllPlayers` array itself (not a copy): the players as pcapEntity, in join order.
 */
-::GetPlayers <- function() { // -> ArrayEx
+::GetPlayers <- function() {
     return AllPlayers
 }
 
 
 /*
- * Tracks players joining the game and initializes their.
+ * Tracks players joining the game and initializes them.
  *
- * This function iterates over all player entities in the game, attaching eye control
- * and initializing new portal pairs for each new player. It calls OnPlayerJoin for
- * each player added to the AllPlayers list.
+ * For each player without "Eye" user data (not tracked yet): attaches eye control, initializes the portal pair
+ * whose ID is the player's index in AllPlayers, appends the player to AllPlayers and calls OnPlayerJoined.
 */
 ::TrackPlayerJoins <- function() {
     for(local player; player = entLib.FindByClassname("player", player);) {
-        if(player.GetUserData("Eye")) continue // if already inited (AllPlayers.contains(player))
+        if(player.GetUserData("Eye")) continue
 
-        // Attach eye control to the new player
         AttachEyeControl(player)
-        // Initialize a new portal pair for this player:
         InitPortalPair(AllPlayers.len())
 
         AllPlayers.append(player)
-        // Trigger join event
         OnPlayerJoined(player)
     }
 }
 
 /*
- * Handles player events in MP, such as health checks and death events.
+ * Handles player events in MP: leaving, death and respawn.
  *
- * This function iterates over all players in the AllPlayers list, checking if
- * each player is valid and updating their state accordingly. It calls OnPlayerDeath
- * for dead players and schedules their respawn logic.
+ * A tracked player that is no longer valid gets OnPlayerLeft and is removed from AllPlayers. A player whose
+ * health dropped to 0 or below gets OnPlayerDeath and a respawn monitor (_monitorRespawn), and its health is
+ * set to PLAYER_DEATH_MARKER so that each death is handled once.
 */
 ::HandlePlayerEventsMP <- function() {
     local playersToRemove = []
@@ -65,6 +61,10 @@ const PLAYER_DEATH_MARKER = -999
     }
 }
 
+/*
+ * Handles player death in SP: calls OnPlayerDeath once when the player's health drops to 0 or below,
+ * then sets the health to PLAYER_DEATH_MARKER.
+*/
 ::HandlePlayerEventsSP <- function() {
     local h = AllPlayers[0].GetHealth()
     if(h > 0 || h == PLAYER_DEATH_MARKER) return
@@ -74,11 +74,11 @@ const PLAYER_DEATH_MARKER = -999
 
 /*
  * Waits until a dead player respawns, then calls OnPlayerRespawn. Ends silently if the player leaves.
- * A generator is fine here: this path only runs in multiplayer, which has no save/load.
  *
  * @param {pcapEntity} player - The dead player.
 */
 function _monitorRespawn(player) {
+    // A generator is fine here: this path only runs in multiplayer, which has no save/load.
     while(player.IsValid() && player.GetHealth() <= 0) {
         yield 0.3
     }
@@ -88,10 +88,10 @@ function _monitorRespawn(player) {
 
 
 /*
- * Attaches eye control entities to all players in the game.
+ * Attaches eye tracking to a player: a logic_measure_movement copies the player's eye position and angles
+ * to an info_target, which is stored as the player's "Eye" user data. Does nothing if the player already has it.
  *
- * This function creates logic_measure_movement and info_target entities for each player to track their eye position and angles.
- * It is called automatically at the initialization of the library and periodically in multiplayer games.
+ * @param {pcapEntity} player - The player.
 */
 function AttachEyeControl(player) {
     if(player.GetUserData("Eye")) return
@@ -116,7 +116,15 @@ function AttachEyeControl(player) {
 }
 
 
-// Empty Hooks
+/*
+ * Player hooks, empty by default. Each gets the player as a pcapEntity. Define your own versions
+ * after the library is loaded: loading it replaces earlier definitions.
+ *
+ * OnPlayerJoined - The player was added to AllPlayers.
+ * OnPlayerLeft - MP only. The tracked player is no longer valid.
+ * OnPlayerDeath - The player's health dropped to 0 or below. Called once per death.
+ * OnPlayerRespawn - MP only. The dead player's health is above 0 again.
+*/
 function OnPlayerJoined(player) {}
 function OnPlayerLeft(player) {}
 function OnPlayerDeath(player) {}

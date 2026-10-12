@@ -1,10 +1,15 @@
+/*
+ * Wrapper around an entity handle, which is kept in `CBaseEntity`.
+ * Get instances through entLib (FromEntity, Create*, Find*): it keeps one cached wrapper per entity.
+*/
 ::pcapEntity <- class {
     CBaseEntity = null;
 
-    /* 
-     * Constructor for the entity object.
+    /*
+     * Wraps an entity and stores the wrapper as `selfEx` in the entity's script scope.
+     * Use entLib.FromEntity instead of calling it directly: it returns the cached wrapper.
      *
-     * @param {CBaseEntity} entity - The entity object.
+     * @param {CBaseEntity|pcapEntity} entity - The entity to wrap. A pcapEntity is unwrapped first.
     */
     constructor(entity) { 
         if (!entity || !entity.IsValid()) throw("pcapEntity: invalid entity");
@@ -18,9 +23,9 @@
     }
 
     /*
-     * Sets the angles of the entity.
+     * Sets the angles of the entity from a Vector.
      *
-     * @param {Vector} angles - The angle vector.
+     * @param {Vector} angles - Pitch, yaw and roll.
     */
     function SetAngles2(angles) {
         this.CBaseEntity.SetAngles(angles.x, angles.y, angles.z)
@@ -39,9 +44,11 @@
 
 
     /*
-     * Kills the entity.
+     * Kills the entity through the "Kill" input.
+     * Does nothing if the entity is already invalid.
      *
-     * @param {number} fireDelay - Delay in seconds before applying.
+     * @param {number} fireDelay - Delay in seconds before applying. (default: 0)
+     * @param {string} eventName - The name of the event to schedule the delayed call under. (default: "global")
     */
     function Kill(fireDelay = 0, eventName = "global") {
         if(fireDelay != 0)
@@ -54,10 +61,12 @@
 
 
     /*
-     * Dissolves the entity using an env_entity_dissolver entity, creating a visual effect of the entity dissolving away.
+     * Dissolves the entity through the shared env_entity_dissolver (`dissolver`).
+     * Once it has run, IsValid() returns false. The dissolver finds its target by targetname, so an entity
+     * without one, or with one shared by other entities, is renamed to a unique one first.
      *
-     * This method utilizes an env_entity_dissolver entity to create the dissolve effect. If the entity doesn't have a targetname, 
-     * a unique targetname is assigned to it before initiating the dissolve process. 
+     * @param {number} fireDelay - Delay in seconds before applying. (default: 0)
+     * @param {string} eventName - The name of the event to schedule the delayed call under. (default: "global")
     */
     function Dissolve(fireDelay = 0, eventName = "global") {
         if(fireDelay != 0)
@@ -79,9 +88,9 @@
 
 
     /*
-     * Checks if the entity is valid.
+     * Checks whether the entity still exists and has not been killed, destroyed or dissolved through this wrapper.
      *
-     * @returns {bool} - True if the entity is valid, false otherwise.
+     * @returns {bool|null} - True if the entity is valid. False otherwise, or null after Kill or Destroy.
     */
     function IsValid() {
         return this.CBaseEntity && this.CBaseEntity.IsValid() && !this.GetUserData("Dissolved")
@@ -89,21 +98,18 @@
 
 
     /*
-     * Checks if this entity is the player entity.
-     * 
-     * @returns {bool} - True if this entity is the player, false otherwise.
+     * Checks whether the entity is a player (classname "player").
+     *
+     * @returns {bool} - True if the entity is a player, false otherwise.
     */
     function IsPlayer() {
         return this.CBaseEntity.GetClassname() == "player"
     }
 
     /*
-     * Gets the eye position of the player entity.
+     * Gets the eye position of a player. For any other entity, returns GetCenter().
      *
-     * @returns {Vector|null} - The eye position as a Vector, or null if the entity is not a player.
-     * 
-     * This method retrieves the position from which the player's view is rendered. It is important to note that this method only works with player entities.
-     * For non-player entities, it returns GetCenter. 
+     * @returns {Vector} - The position in world coordinates.
     */
      function EyePosition() {
         if(this.IsPlayer()) return this.CBaseEntity.EyePosition()
@@ -111,25 +117,19 @@
     }
 
     /*
-     * Gets the eye angles of the player entity. 
+     * Gets the view angles of a player. For any other entity, returns GetAngles().
      *
-     * @returns {Vector|null} - The eye angles as a Vector representing pitch, yaw, and roll, or null if the entity is not a player.
-     *
-     * This method retrieves the orientation of the player's view. It is important to note that this method only works with player entities.
-     * For non-player entities, it returns GetAngles. 
+     * @returns {Vector} - Pitch, yaw and roll.
     */
     function EyeAngles() {
         if(this.IsPlayer()) return this.GetUserData("Eye").GetAngles()
         return this.GetAngles()
     }
 
-    /* 
-     * Gets the forward vector from the player entity's eye position, indicating the direction the player is looking. 
+    /*
+     * Gets the direction a player is looking in. For any other entity, returns GetForwardVector().
      *
-     * @returns {Vector|null} - The forward vector as a Vector, or null if the entity is not a player.
-     *
-     * This method retrieves the direction in which the player is facing. It is important to note that this method only works with player entities.
-     * For non-player entities, it returns GetForwardVector.
+     * @returns {Vector} - The unit forward vector.
     */
     function EyeForwardVector() {
         if(this.IsPlayer()) return this.GetUserData("Eye").GetForwardVector()
@@ -137,10 +137,12 @@
     }
 
     /*
-     * Sets the key-value pair of the entity.  
+     * Sets a keyvalue of the entity and stores the value as user data, where GetKeyValue(key) reads it.
      *
      * @param {string} key - The key of the key-value pair.
      * @param {int|float|Vector|string} value - The value of the key-value pair.
+     * @param {number} fireDelay - Delay in seconds before applying. (default: 0)
+     * @param {string} eventName - The name of the event to schedule the delayed call under. (default: "global")
     */
     function SetKeyValue(key, value, fireDelay = 0, eventName = "global") {
         if(fireDelay != 0)
@@ -164,16 +166,14 @@
 
 
     /*
-     * Connects an output of the entity to a target entity and input, allowing for parameter overrides, delays, and limited trigger counts.
+     * Connects an output of the entity to an input of a target entity.
      *
      * @param {string} outputName - The name of the output to connect.
-     * @param {string|CBaseEntity|pcapEntity} target - The target entity or its targetname to connect the output to.
+     * @param {string|CBaseEntity|pcapEntity} target - The targetname, or an entity, which is referenced by its current targetname.
      * @param {string} input - The name of the input on the target entity to connect to.
      * @param {string} param - An optional parameter override for the input. (default: "")
-     * @param {number} delay - An optional delay in seconds before triggering the input. (default: 0) 
-     * @param {number} fires - The number of times the output should fire before becoming inactive. -1 indicates unlimited fires. (default: -1) 
-     * 
-     * This method provides a way to establish connections between entities, allowing them to trigger actions on each other based on outputs and inputs. 
+     * @param {number} delay - An optional delay in seconds before triggering the input. (default: 0)
+     * @param {number} fires - The number of times the output should fire before becoming inactive. -1 indicates unlimited fires. (default: -1)
     */
      function AddOutput(outputName, target, input, param = "", delay = 0, fires = -1) {
         if(typeof target == "instance" || typeof target == "pcapEntity")
@@ -181,21 +181,24 @@
         this.SetKeyValue(outputName, target + "\x001B" + input + "\x001B" + param + "\x001B" + delay + "\x001B" + fires)
     }
 
-    /* 
-     * Connects an output of the entity to a script function or string, allowing for delays and limited trigger counts. 
-     * 
+    /*
+     * Connects an output of the entity to a script function.
+     * A function is called by its name through a "RunScriptCode" output on the entity, so the name must resolve
+     * from the entity's script scope or the root table. Anonymous functions and functions compiled from a string
+     * are stored in the root table under a unique name first.
+     * A string is taken as a function name and connected through the native ConnectOutput; delay and fires don't apply to it.
+     *
      * @param {string} outputName - The name of the output to connect.
-     * @param {string|function} script - The VScripts code or function name to execute when the output is triggered.
-     * @param {number} delay - An optional delay in seconds before executing the script. (default: 0) 
-     * @param {number} fires - The number of times the output should fire before becoming inactive. -1 indicates unlimited fires. (default: -1) 
-     * 
-     * This method provides a way to connect entity outputs directly to script code, allowing for custom actions to be performed when the output is triggered.
+     * @param {function|string} script - The function to call, or the name of a function in the entity's script scope.
+     * @param {number} delay - An optional delay in seconds before the call. (default: 0)
+     * @param {number} fires - The number of times the output should fire before becoming inactive. -1 indicates unlimited fires. (default: -1)
     */
     function ConnectOutputEx(outputName, script, delay = 0, fires = -1) {
         if(typeof script == "function") {
             local funcName = script.getinfos().name
             local src = script.getinfos().src
-            if(!funcName || src == "unnamedbuffer") { // If scripts is an anonymous function, assign it a unique name and add it to the root scope
+            // If scripts is an anonymous function, assign it a unique name and add it to the root scope
+            if(!funcName || src == "unnamedbuffer") { 
                 funcName = UniqueString("OutputFunc")
                 getroottable()[funcName] <- script
             }
@@ -208,29 +211,26 @@
     }
 
     /*
-     * Connects a script function to an input of the entity, allowing external code to react to input events.
-     * 
-     * @param {string} inputName - The name of the input to connect to.
-     * @param {function} closure - The function to execute when the input is triggered. 
-     * 
-     * This function enables the association of custom logic with specific entity inputs, facilitating communication and interaction between entities and external scripts.
+     * Hooks an input of the entity: the closure runs before the input is processed and must return true
+     * to let it through, or false to block it.
+     *
+     * @param {string} inputName - The name of the input to hook.
+     * @param {function} closure - The function to call when the entity receives the input.
     */
     function SetInputHook(inputName, closure) {
         if(this.ValidateScriptScope() == false) return
         this.GetScriptScope()["Input" + inputName] <- closure
-        // This is a quick hack to address a bug where the game sometimes calls `Inputname` instead of `InputName` (Valve, why?)
+        // The engine looks the hook up by the input name as it was fired, and inputs are case-insensitive,
+        // so the lowercase spelling is hooked too.
         this.GetScriptScope()["Input" + inputName.tolower()] <- closure
     }
 
     /*
-     * Plays a sound on the entity.
+     * Plays a sound on the entity through the native EmitSound.
      *
      * @param {string} soundName - The name of the sound to play.
      * @param {number} fireDelay - An optional delay in seconds before playing the sound. (default: 0)
      * @param {string} eventName - The name of the event to schedule the sound playback under. (default: "global")
-     *
-     * This function is an enhanced version of the built-in EmitSound method, allowing for delayed sound playback 
-     * and cancellation using ScheduleEvent.Cancel.
     */
     function EmitSound(soundName, fireDelay = 0, eventName = "global") {
         if(fireDelay != 0)
@@ -240,22 +240,20 @@
     }
 
     /*
-     * Plays a sound on the entity with advanced options, including volume control and looping.
+     * Plays a sound on the entity with volume control and optional looping. StopSoundEx stops it.
+     * Calling it again while the sound is still playing only changes its volume.
      *
      * @param {string} soundName - The name of the sound to play.
      * @param {number} volume - The volume of the sound (0-10). (default: 10)
-     * @param {boolean} looped - Whether the sound should loop. (default: false)
+     * @param {boolean} looped - Whether to replay the sound each time it ends. (default: false)
      * @param {number} fireDelay - An optional delay in seconds before playing the sound. (default: 0)
      * @param {string} eventName - The name of the event to schedule the sound playback under. (default: "global")
-     *
-     * This function provides more control over sound playback compared to EmitSound. It allows you to adjust the volume,
-     * loop sounds that are not inherently loopable, and stop the sound playback using StopSoundEx.
     */
-    function EmitSoundEx(soundName, volume = 10, looped = false, fireDelay = 0, eventName = "global") { // add volume and loop flag
+    function EmitSoundEx(soundName, volume = 10, looped = false, fireDelay = 0, eventName = "global") {
         if(fireDelay != 0)
             return ScheduleEvent.Add(eventName, this.EmitSoundEx, fireDelay, [soundName], this)
         
-        // for updating volume if sound active
+        // If the sound is still playing, only move its emitter to apply the new volume.
         local soundEnt = this.GetUserData(soundName)
         if(soundEnt && soundEnt.IsValid()) 
             return soundEnt.SetAbsOrigin(this.GetOrigin() + Vector(0, 0, 3000 - volume * 300))
@@ -272,18 +270,15 @@
         soundEnt.EmitSound(soundName)
         
         if(!looped) return soundEnt.Destroy(soundTime)
-        ScheduleEvent.AddInterval(soundEnt, soundEnt.EmitSound, soundTime, soundTime, [soundName], soundEnt) // :>
+        ScheduleEvent.AddInterval(soundEnt, soundEnt.EmitSound, soundTime, soundTime, [soundName], soundEnt)
     }
 
     /*
-     * Stops a sound played using EmitSoundEx.
+     * Stops a sound started with EmitSoundEx and removes its emitter. Does nothing if the sound is not playing.
      *
      * @param {string} soundName - The name of the sound to stop.
      * @param {number} fireDelay - An optional delay in seconds before stopping the sound. (default: 0)
      * @param {string} eventName - The name of the event to schedule the sound stop under. (default: "global")
-     *
-     * This function allows you to interrupt sounds that were started using EmitSoundEx. It ensures the sound is stopped
-     * and the associated entity is cleaned up.
     */
     function StopSoundEx(soundName, fireDelay = 0, eventName = "global") {
         if(fireDelay != 0) {
@@ -303,6 +298,8 @@
      * Sets the targetname of the entity.
      *
      * @param {string} name - The targetname to be set.
+     * @param {number} fireDelay - Delay in seconds before applying. (default: 0)
+     * @param {string} eventName - The name of the event to schedule the delayed call under. (default: "global")
     */
     function SetName(name, fireDelay = 0, eventName = "global") {
         if(fireDelay != 0)
@@ -312,9 +309,11 @@
     }
 
     /*
-     * Sets a unique targetname for the entity using the provided prefix.
+     * Sets a unique targetname that starts with the given prefix.
      *
-     * @param {string} prefix - The prefix to be used for the unique targetname. (optional, default="u")
+     * @param {string} prefix - The prefix to be used for the unique targetname. (default: "pcapEnt")
+     * @param {number} fireDelay - Delay in seconds before applying. (default: 0)
+     * @param {string} eventName - The name of the event to schedule the delayed call under. (default: "global")
     */
     function SetUniqueName(prefix = "pcapEnt", fireDelay = 0, eventName = "global") {
         if(fireDelay != 0)
@@ -325,10 +324,13 @@
 
 
     /*
-     * Sets the parent of the entity.
+     * Parents the entity through the "SetParent" input, which finds the parent by targetname.
+     * An entity passed as the parent is referenced by its targetname: if it has none, or shares it with
+     * other entities, it is renamed to a unique one first.
      *
-     * @param {string|CBaseEntity|pcapEntity} parent - The parent entity object or its targetname.
-     * @param {number} fireDelay - Delay in seconds before applying.
+     * @param {string|CBaseEntity|pcapEntity} parentEnt - The parent entity object or its targetname.
+     * @param {number} fireDelay - Delay in seconds before applying. (default: 0)
+     * @param {string} eventName - The name of the event to schedule the delayed call under. (default: "global")
     */
     function SetParent(parentEnt, fireDelay = 0, eventName = "global") {
         if(fireDelay != 0)
@@ -350,10 +352,9 @@
     }
 
     /*
-     * Gets a list of all DIRECT children of this entity.
-     * This function is not recursive and will not find grandchildren.
+     * Gets the direct children of the entity, without grandchildren.
      *
-     * @returns {List} A List containing all direct child pcaptEntity objects.
+     * @returns {List} - The children as pcapEntity objects.
     */
     function GetChildren() {
         local childrenList = List()
@@ -368,11 +369,10 @@
     }
 
     /*
-     * Recursively finds all descendants (children, grandchildren, etc.) of this entity.
-     * Performs a depth-first search of the entity hierarchy.
+     * Gets all descendants of the entity (children, grandchildren, and so on) in depth-first order.
      *
-     * @returns {List} A List containing all descendant pcaptEntity objects.
-    */    
+     * @returns {List} - The descendants as pcapEntity objects.
+    */
     function GetAllChildrenRecursively() {
         local descendantsList = List();
         _findDescendantsRecursive(this.CBaseEntity, descendantsList);
@@ -382,10 +382,11 @@
 
 
     /*
-     * Sets the collision of the entity.
+     * Sets the solid type of the entity through the "SetSolidtype" input.
      *
-     * @param {number} solidType - The type of collision.
-     * @param {number} fireDelay - Delay in seconds before applying.
+     * @param {number} solidType - The solid type (SOLID_* constants).
+     * @param {number} fireDelay - Delay in seconds before applying. (default: 0)
+     * @param {string} eventName - The name of the event to schedule the delayed call under. (default: "global")
     */
     function SetCollision(solidType, fireDelay = 0, eventName = "global") {
         if(fireDelay != 0)
@@ -397,20 +398,23 @@
 
 
     /*
-     * Sets the collision group of the entity.
+     * Sets the collision group of the entity through the "CollisionGroup" keyvalue.
      *
-     * @param {number} collisionGroup - The collision group.
+     * @param {number} collisionGroup - The collision group (COLLISION_GROUP_* constants).
+     * @param {number} fireDelay - Delay in seconds before applying. (default: 0)
+     * @param {string} eventName - The name of the event to schedule the delayed call under. (default: "global")
     */
     function SetCollisionGroup(collisionGroup, fireDelay = 0, eventName = "global") {
         this.SetKeyValue("CollisionGroup", collisionGroup, fireDelay, eventName)
     }
     
 
-    /* 
-     * Starts playing the specified animation.
+    /*
+     * Starts playing the specified animation through the "SetAnimation" input.
      *
      * @param {string} animationName - The name of the animation to play.
-     * @param {number} fireDelay - Delay in seconds before starting the animation.
+     * @param {number} fireDelay - Delay in seconds before starting the animation. (default: 0)
+     * @param {string} eventName - The name of the event to schedule the delayed call under. (default: "global")
     */
     function SetAnimation(animationName, fireDelay = 0, eventName = "global") {
         if(fireDelay != 0)
@@ -422,19 +426,20 @@
 
 
     /*
-     * Sets the alpha (opacity) of the entity.
+     * Sets the alpha (opacity) of the entity. It has no visible effect while "rendermode" is 0 (Normal).
      *
-     * @param {number} opacity - The alpha value (0-255).
-     * @param {number} fireDelay - Delay in seconds before applying.
-     * Note: Don't forget to set "rendermode" to 5 for alpha to work.
+     * @param {number} opacity - The alpha value (0-255). It is truncated to an integer and clamped to that range.
+     * @param {number} fireDelay - Delay in seconds before applying. (default: 0)
+     * @param {string} eventName - The name of the event to schedule the delayed call under. (default: "global")
     */
     function SetAlpha(opacity, fireDelay = 0, eventName = "global") {
         if(fireDelay != 0)
             return ScheduleEvent.Add(eventName, this.SetAlpha, fireDelay, [opacity], this)
         
         // The "Alpha" input clamps, the keyvalue path doesn't: out-of-range values would wrap around.
-        this.__KeyValueFromInt("renderamt", math.clamp(opacity.tointeger(), 0, 255))
-        this.SetUserData("alpha", opacity)
+        local alpha = math.clamp(opacity.tointeger(), 0, 255)
+        this.__KeyValueFromInt("renderamt", alpha)
+        this.SetUserData("alpha", alpha)
     }
 
 
@@ -457,10 +462,11 @@
 
 
     /*
-     * Sets the skin of the entity.
+     * Sets the skin of the entity through the "skin" input.
      *
      * @param {number} skin - The skin number.
-     * @param {number} fireDelay - Delay in seconds before applying.
+     * @param {number} fireDelay - Delay in seconds before applying. (default: 0)
+     * @param {string} eventName - The name of the event to schedule the delayed call under. (default: "global")
     */
     function SetSkin(skin, fireDelay = 0, eventName = "global") { 
         if(fireDelay != 0)
@@ -472,10 +478,11 @@
 
 
     /*
-     * Sets whether the entity should be drawn or not. 
+     * Sets whether the entity is drawn, through the "EnableDraw" / "DisableDraw" inputs.
      *
      * @param {boolean} isEnabled - True to enable drawing, false to disable.
-     * @param {number} fireDelay - Delay in seconds before applying.
+     * @param {number} fireDelay - Delay in seconds before applying. (default: 0)
+     * @param {string} eventName - The name of the event to schedule the delayed call under. (default: "global")
     */
     function SetDrawEnabled(isEnabled, fireDelay = 0, eventName = "global") {
         if(fireDelay != 0)
@@ -486,6 +493,12 @@
         this.SetUserData("IsDraw", isEnabled)
     }
 
+    /*
+     * Sends the entity its "Disable" input and makes TracePlus ignore it (SetTraceIgnore(true)).
+     *
+     * @param {number} fireDelay - Delay in seconds before applying. (default: 0)
+     * @param {string} eventName - The name of the event to schedule the delayed call under. (default: "global")
+    */
     function Disable(fireDelay = 0, eventName = "global") {
         if(fireDelay != 0)
             return ScheduleEvent.Add(eventName, this.Disable, fireDelay, null, this)
@@ -494,6 +507,12 @@
         this.SetTraceIgnore(true)
     }
 
+    /*
+     * Sends the entity its "Enable" input and makes TracePlus hit it again (SetTraceIgnore(false)).
+     *
+     * @param {number} fireDelay - Delay in seconds before applying. (default: 0)
+     * @param {string} eventName - The name of the event to schedule the delayed call under. (default: "global")
+    */
     function Enable(fireDelay = 0, eventName = "global") {
         if(fireDelay != 0)
             return ScheduleEvent.Add(eventName, this.Enable, fireDelay, null, this)
@@ -512,9 +531,11 @@
     }
 
     /*
-     * Sets whether the entity should be ignored during traces.
-     * 
+     * Sets whether TracePlus bbox traces ignore the entity.
+     *
      * @param {boolean} isEnabled - True to ignore the entity during traces, false otherwise.
+     * @param {number} fireDelay - Delay in seconds before applying. (default: 0)
+     * @param {string} eventName - The name of the event to schedule the delayed call under. (default: "global")
     */
     function SetTraceIgnore(isEnabled, fireDelay = 0, eventName = "global") {
         if(fireDelay != 0)
@@ -524,14 +545,21 @@
         TracePlusIgnoreEnts[this.CBaseEntity] <- isEnabled
     }
 
+    /*
+     * Checks whether TracePlus bbox traces ignore the entity.
+     *
+     * @returns {bool|null} - The value last passed to SetTraceIgnore, or null if it was never called.
+    */
     function IsTraceIgnored() {
         return this.GetUserData("TracePlusIgnore")
     }
 
     /*
-     * Sets the spawnflags for the entity.
+     * Sets the spawnflags of the entity through SetKeyValue, so GetSpawnflags returns them.
      *
      * @param {number} flag - The spawnflags value to set.
+     * @param {number} fireDelay - Delay in seconds before applying. (default: 0)
+     * @param {string} eventName - The name of the event to schedule the delayed call under. (default: "global")
     */
     function SetSpawnflags(flag, fireDelay = 0, eventName = "global") {
         if(fireDelay != 0)
@@ -542,10 +570,11 @@
 
 
     /*
-     * Sets the scale of the entity's model.
+     * Sets the scale of the entity's model. Also sets its body group to 0.
      *
      * @param {number} scaleValue - The scale value.
-     * @param {number} fireDelay - Delay in seconds before applying.
+     * @param {number} fireDelay - Delay in seconds before applying. (default: 0)
+     * @param {string} eventName - The name of the event to schedule the delayed call under. (default: "global")
     */
     function SetModelScale(scaleValue, fireDelay = 0, eventName = "global") {
         if(fireDelay != 0)
@@ -553,14 +582,14 @@
         
         this.__KeyValueFromFloat("ModelScale", scaleValue.tofloat())
         this.SetUserData("ModelScale", scaleValue)
-        // hack for entity update
+        // hack for entity inner state update
         EntFireByHandle(this.CBaseEntity, "SetBodyGroup", "1"); EntFireByHandle(this.CBaseEntity, "SetBodyGroup", "0", 0.02)
     }
 
     /*
-     * Gets the current model scale of the entity.
+     * Gets the model scale set with SetModelScale.
      *
-     * @returns {number} - The current model scale value.
+     * @returns {number} - The scale, or 1 if SetModelScale was never called.
     */
     function GetModelScale() {
         local res = this.GetUserData("ModelScale")
@@ -569,10 +598,10 @@
 
 
     /*
-    * Sets the absolute center of the entity in world space.
-    * This will override any parent-relative positioning.
-    *
-    * @param {Vector} vector - The desired absolute center vector in world coordinates.
+     * Moves the entity so that its center (GetCenter) is at the given world position.
+     * It moves through the native SetAbsOrigin, so clients interpolate the move.
+     *
+     * @param {Vector} vector - The desired absolute center vector in world coordinates.
     */
     function SetAbsCenter(vector) {
         local offset = this.CBaseEntity.GetCenter() - this.CBaseEntity.GetOrigin()
@@ -580,9 +609,10 @@
     }
 
     /*
-     * Sets the center of the entity.
+     * Teleports the entity so that its center (GetCenter) is at the given position.
+     * Like SetOrigin, the position is relative to the parent for a parented entity.
      *
-     * @param {Vector} vector - The center vector.
+     * @param {Vector} vector - The center position.
     */
     function SetCenter(vector) {
         local offset = this.CBaseEntity.GetCenter() - this.CBaseEntity.GetOrigin()
@@ -590,11 +620,13 @@
     }
 
     /*
-     * Sets a context value for the entity.
+     * Adds the response context "name:value" to the entity through the "AddContext" input,
+     * and stores the value as user data under name.
      *
      * @param {string} name - The name of the context value.
      * @param {any} value - The value to set.
-     * @param {number} fireDelay - Delay in seconds before applying.
+     * @param {number} fireDelay - Delay in seconds before applying. (default: 0)
+     * @param {string} eventName - The name of the event to schedule the delayed call under. (default: "global")
     */
     function SetContext(name, value, fireDelay = 0, eventName = "global") {
         if(fireDelay != 0)
@@ -604,10 +636,11 @@
         this.SetUserData(name, value)
     }
     
-    /* 
-     * Stores an arbitrary value associated with the entity.
+    /*
+     * Stores an arbitrary value associated with the entity. Names are case-insensitive and share one
+     * namespace with SetKeyValue keys and the library's own entries ("alpha", "color", "eye", "dissolved", ...).
      *
-     * @param {string} name - The name of the value.  
+     * @param {string} name - The name of the value.
      * @param {any} value - The value to store.
     */
     function SetUserData(name, value) {
@@ -615,11 +648,11 @@
     }
 
     /*
-     * Gets a stored user data value.
+     * Gets a value stored with SetUserData or SetKeyValue. The name is case-insensitive.
      *
      * @param {string} name - The name of the value to get.
      * @returns {any} - The stored value, or null if not found.
-    */ 
+    */
     function GetUserData(name) {
         name = name.tolower()
         if(name in EntitiesScopes[this.CBaseEntity])
@@ -631,8 +664,8 @@
      * Calculates the local coordinates (position and angles) of this entity relative to its move parent.
      * If the entity has no parent, its world coordinates are returned.
      *
-     * @returns {table} A table containing the local coordinates: { pos = <Vector>, ang = <Vector> }.
-    */    
+     * @returns {table} - The local coordinates: { pos = <Vector>, ang = <Vector> }.
+    */
     function GetLocalCoords() {
         local pParent = this.CBaseEntity.GetMoveParent();
         if (!pParent) {
@@ -640,7 +673,6 @@
             return { pos = this.GetOrigin(), ang = this.GetAngles() };
         }
 
-        // Get the world positions and angles of both entities
         local childWorldPos = this.GetOrigin();
         local parentWorldPos = pParent.GetOrigin();
 
@@ -658,27 +690,25 @@
     }
 
     /*
-     * A function that sets the entity's absolute origin in world space using teleportation.
-     * This function bypasses interpolation, making the position change instantaneous.
+     * Teleports the entity to a world position, so clients don't interpolate the move.
+     * For a parented entity the position is converted to the parent's space. Parenting to an attachment
+     * is not taken into account: SetAbsOriginNative handles it, but interpolates.
      *
      * @param {Vector} desiredAbsVec - The desired absolute position in world coordinates.
     */
     function SetAbsOrigin(desiredAbsVec) {
         local pParent = this.CBaseEntity.GetMoveParent()
 
-        // If there is no parent, local coordinates are equivalent to absolute coordinates.
+        // The native SetOrigin teleports in the parent's space, which is world space when there is no parent.
         if (!pParent) {
             return this.CBaseEntity.SetOrigin(desiredAbsVec)
         }
 
-        // We have parent, so we need to convert the desired ABSOLUTE coordinates into LOCAL coordinates.
         local parentWorldPos = pParent.GetOrigin()
         local parentWorldAng = pParent.GetAngles()
 
-        // Calculate the offset vector from the parent to the desired point in world coordinates.
         local worldOffsetVector = desiredAbsVec - parentWorldPos
 
-        // Transform the world offset vector into a local one.
         local localPos = math.vector.unrotate(worldOffsetVector, parentWorldAng)
 
         this.SetOrigin(localPos)
@@ -696,34 +726,35 @@
     }
 
     /*
-     * Checks if the bounding box of an entity is a cube (all sides have equal length).
+     * Checks whether the entity's bounding box is a cube (all sides have equal length).
      *
      * @returns {boolean} - True if the bounding box is a cube, false otherwise.
     */
     function IsSquareBbox() {
-        // Get the minimum and maximum coordinates of the bounding box
         local mins = this.GetBoundingMins();
         local maxs = this.GetBoundingMaxs();
         
-        // Calculate the size of the bounding box along each axis
         local sizeX = abs(maxs.x - mins.x)
         local sizeY = abs(maxs.y - mins.y)
         local sizeZ = abs(maxs.z - mins.z)
 
-        // Check if the sizes are equal along all axes
         return sizeX == sizeY && sizeY == sizeZ;
     }
 
-    //! TODO ADD TO DOCS
+    /*
+     * Gets the center of the entity's bounds (GetBoundingMins, GetBoundingMaxs), relative to its origin.
+     *
+     * @returns {Vector} - The center of the bounds.
+    */
     function GetBoundingCenter() {
         return (this.CBaseEntity.GetBoundingMaxs() - this.CBaseEntity.GetBoundingMins()) * 0.5
     }
 
-    /* 
-     * Returns the axis-aligned bounding box (AABB) of the entity.
+    /*
+     * Gets the axis-aligned box that encloses the entity's rotated bounds, relative to its origin (see CreateAABB).
      *
-     * @returns {table} - The minimum bounds, maximum bounds, and center of the entity.
-    */ 
+     * @returns {table} - {min, center, max}: the min corner, the center and the max corner of the box.
+    */
     function GetAABB() {
         return {
             min = this.CreateAABB(0),
@@ -743,11 +774,11 @@
 
 
     /*
-     * Gets the value of the key-value pair of the entity.
-     * Note: only works if you used the SetKeyValue function!
+     * Gets a keyvalue stored through SetKeyValue (or any user data under that name).
+     * For "model", "health" and "targetname" it falls back to the entity's current value if none was stored.
      *
      * @param {string} key - The key of the key-value pair.
-     * @returns {any} - The value of the key-value pair.
+     * @returns {any} - The value, or null if none was stored and the key has no fallback.
     */
     function GetKeyValue(key) {
         local value = this.GetUserData(key)
@@ -771,21 +802,19 @@
 
 
     /*
-     * Gets the spawnflags for the entity.
-     * Note: only works if you used the SetKeyValue function!
+     * Gets the spawnflags set through SetSpawnflags or SetKeyValue.
      *
-     * @returns {int|null} - The spawnflags value.
-    */ 
+     * @returns {int|null} - The spawnflags value, or null if they were not set that way.
+    */
     function GetSpawnflags() {
         return this.GetUserData("spawnflags")
     }
 
 
     /*
-     * Gets the alpha/opacity value of the entity.
-     * Note: only works if you used the SetKeyValue function!
-     * 
-     * @returns {int|null} - The alpha value.
+     * Gets the alpha (opacity) set with SetAlpha.
+     *
+     * @returns {int} - The alpha value, or 255 if SetAlpha was never called.
     */
     function GetAlpha() {
         local alpha = this.GetUserData("alpha")
@@ -794,10 +823,9 @@
 
 
     /*
-     * Gets the color value of the entity.
-     * Note: only works if you used the SetKeyValue function!
+     * Gets the color set with SetColor.
      *
-     * @returns {string|null} - The color value.
+     * @returns {string} - The color as "R G B", or "255 255 255" if SetColor was never called.
     */
     function GetColor() {
         local color = this.GetUserData("color")
@@ -806,10 +834,9 @@
 
 
     /*
-     * Gets the skin of the entity.
-     * Note: only works if you used the SetKeyValue function!
+     * Gets the skin set with SetSkin.
      *
-     * @returns {number|null} - The skin number.
+     * @returns {number} - The skin number, or 0 if SetSkin was never called.
     */
     function GetSkin() {
         local skin = this.GetUserData("skin")
@@ -818,7 +845,7 @@
 
 
     /*
-     * Gets the prefix of the entity name.
+     * Gets the prefix of the entity name: everything up to and including the last "-" ("a-b-" for "a-b-c").
      *
      * @returns {string} - The prefix of the entity name.
     */
@@ -828,7 +855,7 @@
 
 
     /*
-     * Gets the postfix of the entity name.
+     * Gets the postfix of the entity name: everything from the first "-" on ("-b-c" for "a-b-c").
      *
      * @returns {string} - The postfix of the entity name.
     */
@@ -837,12 +864,10 @@
     }
 
     /*
-     * Retrieves the partner instance of the entity, prioritizing the actual partner entity if available, and falling back to user-stored partner data if necessary.
+     * Gets the partner of a portal: the linked partner of a linked_portal_door, or for a prop_portal
+     * the other portal of its pair (see FindPartnerForPropPortal).
      *
-     * @returns {Entity|null} - The partner entity, or null if no partner is found.
-     * 
-     * This method first attempts to retrieve the actual partner entity using the `GetPartnerInstance` method of the underlying CBaseEntity.
-     * If no partner entity is found, it then checks for a partner stored in the entity's user data under the key "partner". This can be useful in situations where the partner relationship is not directly established through entity properties but is managed through custom logic. 
+     * @returns {pcapEntity|null} - The partner entity, or null if no partner is found.
     */
     function GetPartnerInstance() {
         if(this.CBaseEntity instanceof CLinkedPortalDoor)
@@ -852,10 +877,10 @@
 
 
     /*
-     * Gets the oriented bounding box of the entity.
+     * Gets a point of the axis-aligned box that encloses the entity's rotated bounds (GetBBoxPoints).
      *
-     * @param {number} stat - 0 for min bounds, 7 for max bounds, 4 for center bounds. 
-     * @returns {Vector} - The bounds vector.
+     * @param {number} stat - 0 for the min corner, 7 for the max corner, 4 for the center.
+     * @returns {Vector} - The point, relative to the entity's origin.
     */
     function CreateAABB(stat) { 
         local angles = this.GetAngles()
@@ -887,9 +912,10 @@
     }
 
     /*
-     * Gets the 8 vertices of the axis-aligned bounding box.
+     * Gets the 8 corners of the entity's bounds rotated by its angles, relative to its origin (add GetOrigin()
+     * for world positions). The corner names below use the entity's local axes: +X front, +Y left, +Z top.
      *
-     * @returns {Array<Vector>} - The 8 vertices of the bounding box.  
+     * @returns {array} - The 8 corners as Vectors.
     */
     function GetBBoxPoints() {
         local max = this.GetBoundingMaxs();
@@ -898,56 +924,56 @@
     
         local getVertex = macros.GetVertex
         return [
-            getVertex(max, min, min, angles), // 0 - Right-Bottom-Front
-            getVertex(max, max, min, angles), // 1 - Right-Top-Front
-            getVertex(min, max, min, angles), // 2 - Left-Top-Front
-            getVertex(min, min, min, angles), // 3 - Left-Bottom-Front 
-            getVertex(min, min, max, angles), // 4 - Left-Bottom-Back
-            getVertex(min, max, max, angles), // 5 - Left-Top-Back
-            getVertex(max, max, max, angles), // 6 - Right-Top-Back
-            getVertex(max, min, max, angles), // 7 - Right-Bottom-Back
+            getVertex(max, min, min, angles), // 0 - Front-Right-Bottom
+            getVertex(max, max, min, angles), // 1 - Front-Left-Bottom
+            getVertex(min, max, min, angles), // 2 - Back-Left-Bottom
+            getVertex(min, min, min, angles), // 3 - Back-Right-Bottom
+            getVertex(min, min, max, angles), // 4 - Back-Right-Top
+            getVertex(min, max, max, angles), // 5 - Back-Left-Top
+            getVertex(max, max, max, angles), // 6 - Front-Left-Top
+            getVertex(max, min, max, angles), // 7 - Front-Right-Top
         ]
     }
 
     /*
-     * Gets the faces of the entity's bounding box as an array of triangle vertices.
+     * Gets the faces of the rotated box from GetBBoxPoints as 12 triangles, two per face, relative to the entity's origin.
      *
-     * @returns {array} - An array of 12 Vector triplets, where each triplet represents the three vertices of a triangle face.
+     * @returns {array} - 12 tables {origin, vertices}: vertices holds the triangle's 3 corners, origin its centroid.
     */
     function GetBBoxFaces() {
         local vertices = this.GetBBoxPoints()
         local getTriangle = macros.GetTriangle
         return [
-            /* Bottom face triangles */ 
-            getTriangle(vertices[0], vertices[3], vertices[4]), // Face 0: Right-Bottom-Front, Left-Bottom-Front, Left-Bottom-Back
-            getTriangle(vertices[0], vertices[4], vertices[7]), // Face 1: Right-Bottom-Front, Left-Bottom-Back, Right-Bottom-Back
+            /* Right face triangles */
+            getTriangle(vertices[0], vertices[3], vertices[4]), // Face 0: Front-Right-Bottom, Back-Right-Bottom, Back-Right-Top
+            getTriangle(vertices[0], vertices[4], vertices[7]), // Face 1: Front-Right-Bottom, Back-Right-Top, Front-Right-Top
 
-            /* Top face triangles */ 
-            getTriangle(vertices[1], vertices[2], vertices[5]), // Face 2: Right-Top-Front, Left-Top-Front, Left-Top-Back
-            getTriangle(vertices[1], vertices[5], vertices[6]), // Face 3: Right-Top-Front, Left-Top-Back, Right-Top-Back
-
-            /* Left face triangles */ 
-            getTriangle(vertices[3], vertices[2], vertices[5]), // Face 4: Left-Bottom-Front, Left-Top-Front, Left-Top-Back 
-            getTriangle(vertices[3], vertices[5], vertices[4]), // Face 5: Left-Bottom-Front, Left-Top-Back, Left-Bottom-Back
-
-            /* Right face triangles */ 
-            getTriangle(vertices[0], vertices[1], vertices[6]), // Face 6: Right-Bottom-Front, Right-Top-Front, Right-Top-Back
-            getTriangle(vertices[0], vertices[6], vertices[7]), // Face 7: Right-Bottom-Front, Right-Top-Back, Right-Bottom-Back
-
-            /* Front face triangles */ 
-            getTriangle(vertices[0], vertices[1], vertices[2]), // Face 8: Right-Bottom-Front, Right-Top-Front, Left-Top-Front 
-            getTriangle(vertices[0], vertices[2], vertices[3]), // Face 9: Right-Bottom-Front, Left-Top-Front, Left-Bottom-Front
+            /* Left face triangles */
+            getTriangle(vertices[1], vertices[2], vertices[5]), // Face 2: Front-Left-Bottom, Back-Left-Bottom, Back-Left-Top
+            getTriangle(vertices[1], vertices[5], vertices[6]), // Face 3: Front-Left-Bottom, Back-Left-Top, Front-Left-Top
 
             /* Back face triangles */
-            getTriangle(vertices[7], vertices[6], vertices[5]), // Face 10: Right-Bottom-Back, Right-Top-Back, Left-Top-Back 
-            getTriangle(vertices[7], vertices[5], vertices[4])  // Face 11: Right-Bottom-Back, Left-Top-Back, Left-Bottom-Back 
+            getTriangle(vertices[3], vertices[2], vertices[5]), // Face 4: Back-Right-Bottom, Back-Left-Bottom, Back-Left-Top
+            getTriangle(vertices[3], vertices[5], vertices[4]), // Face 5: Back-Right-Bottom, Back-Left-Top, Back-Right-Top
+
+            /* Front face triangles */
+            getTriangle(vertices[0], vertices[1], vertices[6]), // Face 6: Front-Right-Bottom, Front-Left-Bottom, Front-Left-Top
+            getTriangle(vertices[0], vertices[6], vertices[7]), // Face 7: Front-Right-Bottom, Front-Left-Top, Front-Right-Top
+
+            /* Bottom face triangles */
+            getTriangle(vertices[0], vertices[1], vertices[2]), // Face 8: Front-Right-Bottom, Front-Left-Bottom, Back-Left-Bottom
+            getTriangle(vertices[0], vertices[2], vertices[3]), // Face 9: Front-Right-Bottom, Back-Left-Bottom, Back-Right-Bottom
+
+            /* Top face triangles */
+            getTriangle(vertices[7], vertices[6], vertices[5]), // Face 10: Front-Right-Top, Front-Left-Top, Back-Left-Top
+            getTriangle(vertices[7], vertices[5], vertices[4])  // Face 11: Front-Right-Top, Back-Left-Top, Back-Right-Top
         ]
     }
 
     /*
      * Checks if this entity is equal to another entity based on their entity indices.
      *
-     * @param {pcapEntity} other - The other entity to compare.
+     * @param {pcapEntity|CBaseEntity} other - The other entity to compare.
      * @returns {boolean} - True if the entities are equal, false otherwise.
     */
     function IsEqual(other) return this.entindex() == other.entindex()
@@ -968,8 +994,8 @@
 }
 
 /*
- * Internal helper function to perform a recursive depth-first search for descendants.
- * This should not be called directly.
+ * Appends all descendants of an entity to resultList as pcapEntity objects, depth-first.
+ * Internal helper of pcapEntity.GetAllChildrenRecursively.
  *
  * @param {CBaseEntity} pCurrentParent - The entity to search for children of.
  * @param {List} resultList - The list to append found children to.
@@ -984,6 +1010,7 @@
     }
 }
 
+// Passthroughs to the native CBaseEntity methods.
 function pcapEntity::ConnectOutput(output, funcName) this.CBaseEntity.ConnectOutput(output, funcName)
 function pcapEntity::DisconnectOutput(output, funcName) this.CBaseEntity.DisconnectOutput(output, funcName)
 function pcapEntity::PrecacheSoundScript(sound_name) this.CBaseEntity.PrecacheSoundScript(sound_name)
@@ -1027,7 +1054,7 @@ function pcapEntity::__KeyValueFromFloat(key, value) return this.CBaseEntity.__K
 function pcapEntity::__KeyValueFromString(key, value) return this.CBaseEntity.__KeyValueFromString(key, value)
 function pcapEntity::__KeyValueFromVector(key, value) return this.CBaseEntity.__KeyValueFromVector(key, value)
 
-// Hierarchy & Movement relations
+// Hierarchy & Movement relations. Entities passed in and returned are raw CBaseEntity handles, not pcapEntity.
 function pcapEntity::FirstMoveChild() return this.CBaseEntity.FirstMoveChild()
 function pcapEntity::GetMoveParent() return this.CBaseEntity.GetMoveParent()
 function pcapEntity::GetRootMoveParent() return this.CBaseEntity.GetRootMoveParent()

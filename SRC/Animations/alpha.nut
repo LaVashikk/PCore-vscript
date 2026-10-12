@@ -1,12 +1,13 @@
 /*
  * Creates an animation that transitions the alpha (opacity) of entities over time.
+ * The alpha is only visible with a rendermode other than 0.
  *
- * @param {array|CBaseEntity|pcapEntity} entities - The entities to animate.
+ * @param {string|array|ArrayEx|List|CBaseEntity|pcapEntity} entities - The entities to animate.
  * @param {number} startOpacity - The starting opacity value (0-255). 
  * @param {number} endOpacity - The ending opacity value (0-255). 
  * @param {number} time - The duration of the animation in seconds. 
  * @param {table} animSetting - A table containing additional animation settings. (optional) 
- * @returns {number} The duration of the animation in seconds. 
+ * @returns {number} - The duration of the animation in seconds.
 */
 animate["AlphaTransition"] <- function(entities, startOpacity, endOpacity, time, animSetting = {}) {
     if (typeof time != "integer" && typeof time != "float")  throw("AlphaTransition: 'time' argument must be a number, but got " + typeof time);

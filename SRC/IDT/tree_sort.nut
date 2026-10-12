@@ -2,13 +2,12 @@
  * A node in an AVL tree.
 */
 ::treeNode <- class {
-    // The value stored in the node. 
     value = null;
     // The left child node. 
     l = null;
     // The right child node. 
     r = null; 
-    // The height of the node. 
+    // The height of the subtree rooted at this node (1 for a leaf).
     h = 1; 
 
     /*
@@ -26,16 +25,13 @@
 }
 
 /*
- * An AVL tree implementation.
- *
- * An AVL tree is a self-balancing binary search tree where the heights of the two child subtrees of any node differ by at most one.
+ * A self-balancing (AVL) binary search tree of mutually comparable values. Duplicates are allowed.
+ * Indexing (tree[i]) and foreach go through the values in ascending order.
 */
 ::AVLTree <- class {
-    // The root node of the tree. 
     root = null;
-    // The number of nodes in the tree. 
     size = 0;
-    // A cache of the inorder traversal of the tree. 
+    // The sorted values (ArrayEx) returned by toarray(). Reset by insert and remove.
     inorderCache = null;
 
     /*
@@ -52,7 +48,7 @@
     /*
      * Creates a new AVL tree from an array.
      * 
-     * @param {array} array - The array to create the tree from.
+     * @param {array|ArrayEx} array - The array to create the tree from.
      * @returns {AVLTree} - The new tree containing the elements from the array.
     */
     function FromArray(array) {
@@ -65,18 +61,18 @@
     // --- Basic Methods ---
 
     /*
-     * Gets the number of nodes in the tree.
+     * Gets the number of values in the tree.
      *
-     * @returns {number} - The number of nodes in the tree.
+     * @returns {number} - The number of values in the tree.
     */
     function len() {
         return this.size;
     }
 
     /*
-     * Converts the tree to an array using inorder traversal.
+     * Gets the values of the tree in ascending order.
      *
-     * @returns {ArrayEx} - An array containing the tree nodes in ascending order.
+     * @returns {ArrayEx} - The values in ascending order.
     */
     function toarray() { 
         if(this.inorderCache == null) 
@@ -86,9 +82,9 @@
     }
 
     /*
-     * Converts the tree to a list using inorder traversal.
+     * Converts the tree to a List.
      *
-     * @returns {List} - A list containing the tree nodes in ascending order.
+     * @returns {List} - A new List with the values in ascending order.
     */
     function tolist() {
         local result = List();
@@ -105,6 +101,9 @@
         return "AVLTree";
     }
 
+    /*
+     * Indexing: tree[idx] is the value at index idx in ascending order (tree[0] is the smallest). Throws if idx is out of range.
+    */
     function _get(idx) {
         local values = this.toarray()
         if (idx < 0 || idx >= values.len()) {
@@ -113,6 +112,9 @@
         return values[idx];
     }
 
+    /*
+     * Lets foreach iterate the values in ascending order: foreach(idx, value in tree).
+    */
     function _nexti(previdx) {
         local len = this.len();
         if (len == 0) return null;
@@ -123,9 +125,9 @@
     // --- Insertion Methods --- 
 
     /*
-     * Inserts a new node with the given key into the tree.
+     * Inserts a value into the tree. Duplicates are allowed.
      *
-     * @param {any} key - The key of the node to insert.
+     * @param {any} key - The value to insert.
     */
     function insert(key) {
         this.root = this._insert(this.root, key);
@@ -149,10 +151,8 @@
             node.r = _insert(node.r, key);
         }
     
-        // Update height
         node.h = 1 + math.max(_getHeight(node.l), _getHeight(node.r));
 
-        // Update the balance factor and balance the tree
         local balanceFactor = _balanceFactor(node);
 
         // Left Left Case
@@ -236,9 +236,7 @@
     }
 
     /*
-     * Gets the balance factor of a node.
-     *
-     * The balance factor is the difference in height between the left and right subtrees of the node.
+     * Gets the balance factor of a node: the height of its left subtree minus the height of its right one.
      *
      * @param {treeNode|null} node - The node to get the balance factor of.
      * @returns {number} - The balance factor of the node.
@@ -284,9 +282,9 @@
     // --- Removal Methods  ---
 
     /*
-     * Removes the node with the given value from the tree.
+     * Removes one occurrence of the value from the tree. Does nothing if the value is not in the tree.
      *
-     * @param {any} value - The value of the node to remove.
+     * @param {any} value - The value to remove.
     */
     function remove(value) {
         this.root = this._remove(this.root, value);
@@ -311,10 +309,9 @@
         } else if (value > node.value) {
             node.r = this._remove(node.r, value);
         } else {
-            // Node found, handle deletion based on number of children
             if (!node.l || !node.r) {
                 local temp = node.l ? node.l : node.r;
-                node = temp; // Replace node with its child
+                node = temp;
             } else {
                 // Node has two children, find inorder successor
                 local temp = this.min(node.r);
@@ -327,12 +324,10 @@
             return node;
         }
 
-        // Balance the tree
         node.h = 1 + math.max(_getHeight(node.l), _getHeight(node.r));
 
         local balanceFactor = _balanceFactor(node);
 
-        // Balance the tree
         // Left Left Case
         if (balanceFactor > 1 && _balanceFactor(node.l) >= 0) {
             return _rRotate(node);
@@ -374,6 +369,12 @@
     */
     function GetMax() return this.max(this.root).value
 
+    /*
+     * Gets the node with the smallest value in a subtree.
+     *
+     * @param {treeNode|null} node - The root of the subtree.
+     * @returns {treeNode|null} - The leftmost node, or null if node is null.
+    */
     function min(node) {
         local current = node;
         while (current && current.l) {
@@ -382,6 +383,12 @@
         return current;
     }
 
+    /*
+     * Gets the node with the largest value in a subtree.
+     *
+     * @param {treeNode|null} node - The root of the subtree.
+     * @returns {treeNode|null} - The rightmost node, or null if node is null.
+    */
     function max(node) {
         local current = node;
         while (current && current.r) {
@@ -393,9 +400,9 @@
     // --- Traversal Methods ---
 
     /*
-     * Performs an inorder traversal of the tree and returns the nodes in ascending order.
+     * Collects the values of the tree in ascending order.
      *
-     * @returns {ArrayEx} - An array containing the tree nodes in ascending order.
+     * @returns {ArrayEx} - A new ArrayEx with the values in ascending order.
     */
     function inorderTraversal() {
         local result = ArrayEx();
@@ -404,10 +411,10 @@
     }
 
     /*
-     * Recursive helper function for inorder traversal.
+     * Recursive helper function for inorder traversal: appends the values of a subtree in ascending order.
      *
      * @param {treeNode|null} node - The current node being visited.
-     * @param {ArrayEx} result - The array to store the traversed nodes. 
+     * @param {ArrayEx|List} result - The container the values are appended to.
     */
     function _inorder(node, result) {
         if (node) {
@@ -417,7 +424,10 @@
         }
     }
 
-    // Print the tree
+    /*
+     * Prints the tree structure to the console, one value per line.
+     * "L----" marks a left child, "R----" a right child or the root.
+    */
     function printTree() return this._print(this.root, "", true)
 
     function _print(currPtr, indent, last) {

@@ -1,34 +1,39 @@
 /*
- * Settings for ray traces.
+ * Settings for bbox traces (TracePlus.Bbox, TracePlus.PortalBbox): class and model filters, custom filter
+ * functions and analyzer options. Create instances with TracePlus.Settings.new().
 */
 TracePlus["Settings"] <- class {
     id = null;
     ignoreAllClasses = false;
     
-    // An array of entity classnames to ignore during traces. 
+    // Entity classnames to ignore during traces. An entry matches every classname that contains it; "*" ignores all classes.
     ignoreClasses = ArrayEx("viewmodel", "weapon_", "beam", "light",
         "trigger_", "phys_", "env_", "point_", "info_", "vgui_", "logic_",
         "clone", "prop_portal", "portal_base2D", "func_clip", "func_instance",
         "func_portal_detector", 
         "worldspawn", "soundent", "player_manager", "bodyque", "ai_network"
     );
-    // An array of entity classnames to prioritize during traces.  
+    // Entity classnames that are hit even if they match ignoreClasses; matched the same way.
     priorityClasses = ArrayEx();
-    // An array of entity model names to ignore during traces. 
+    // Entity model names to ignore during traces. An entry matches every model name that contains it.
     ignoredModels = ArrayEx();
 
 
-    // A custom function to determine if a ray should hit an entity. 
+    // A custom function to determine if a ray should hit an entity, see SetCollisionFilter.
     shouldRayHitEntity = null;
-    // A custom function to determine if an entity should be ignored during a trace. 
+    // A custom function to determine if an entity should be ignored during a trace, see SetIgnoreFilter.
     shouldIgnoreEntity = null;
 
     depthAccuracy = 5;
     bynaryRefinement = false;
 
     /*
-     * Creates a new TraceSettings object with default values or from a table of settings. 
-     * 
+     * Creates a new TraceSettings object with default values or from a table of settings.
+     *
+     * Keys: ignoreClasses, priorityClasses, ignoredModels (array or ArrayEx), shouldRayHitEntity, shouldIgnoreEntity
+     * (functions), depthAccuracy, bynaryRefinement. A given list replaces the default one; to extend the default
+     * ignored classes, use AppendIgnoredClass instead.
+     *
      * @param {table} settingsTable - A table containing settings to override the defaults. (optional)
      * @returns {TraceSettings} - A new TraceSettings object.
     */
@@ -36,21 +41,14 @@ TracePlus["Settings"] <- class {
         local result = TracePlus.Settings()
         result.id = UniqueString("TracePlus")
 
-        // Set the ignoreClasses setting from the settings table or use the default. 
         result.SetIgnoredClasses(macros.GetFromTable(settingsTable, "ignoreClasses", TracePlus.Settings.ignoreClasses))
-        // Set the priorityClasses setting from the settings table or use the default. 
         result.SetPriorityClasses(macros.GetFromTable(settingsTable, "priorityClasses", TracePlus.Settings.priorityClasses))
-        // Set the ignoredModels setting from the settings table or use the default. 
         result.SetIgnoredModels(macros.GetFromTable(settingsTable, "ignoredModels", TracePlus.Settings.ignoredModels))
         
-        // Set the shouldRayHitEntity setting from the settings table or use the default.  
         result.SetCollisionFilter(macros.GetFromTable(settingsTable, "shouldRayHitEntity", null))
-        // Set the shouldIgnoreEntity setting from the settings table or use the default. 
         result.SetIgnoreFilter(macros.GetFromTable(settingsTable, "shouldIgnoreEntity", null))
 
-        // Set the depth accuracy for the BBox trace. Lower values are more precise for hitting thin objects but cost more performance. Default is 5.
         result.SetDepthAccuracy(macros.GetFromTable(settingsTable, "depthAccuracy", 5))
-        // Enable or disable binary refinement. This performs an extra search step to get a more accurate hit position, which is vital for calculating correct surface normals. Default is false.
         result.SetBynaryRefinement(macros.GetFromTable(settingsTable, "bynaryRefinement", false))
         
         return result
@@ -60,7 +58,8 @@ TracePlus["Settings"] <- class {
     /*
      * Sets the list of entity classnames to ignore during traces.
      *
-     * @param {array|ArrayEx} ignoreClassesArray - An array or ArrayEx containing entity classnames to ignore. 
+     * @param {array|ArrayEx} ignoreClassesArray - An array or ArrayEx containing entity classnames to ignore.
+     * @returns {TraceSettings} - This settings object, for chaining.
     */
     function SetIgnoredClasses(ignoreClassesArray) {
         if(typeof ignoreClassesArray != "array" && typeof ignoreClassesArray != "ArrayEx") throw("TracePlus.Settings.SetIgnoredClasses: Invalid argument type. Expected an 'array' or 'ArrayEx', but got " + typeof ignoreClassesArray)
@@ -74,7 +73,8 @@ TracePlus["Settings"] <- class {
     /*
      * Sets the list of entity classnames to prioritize during traces.
      *
-     * @param {array|ArrayEx} priorityClassesArray - An array or ArrayEx containing entity classnames to prioritize. 
+     * @param {array|ArrayEx} priorityClassesArray - An array or ArrayEx containing entity classnames to prioritize.
+     * @returns {TraceSettings} - This settings object, for chaining.
     */
     function SetPriorityClasses(priorityClassesArray) {
         if(typeof priorityClassesArray != "array" && typeof priorityClassesArray != "ArrayEx") throw("TracePlus.Settings.SetPriorityClasses: Invalid argument type. Expected an 'array' or 'ArrayEx', but got " + typeof priorityClassesArray)
@@ -86,7 +86,8 @@ TracePlus["Settings"] <- class {
     /*
      * Sets the list of entity model names to ignore during traces.
      *
-     * @param {array|ArrayEx} ignoredModelsArray - An array or ArrayEx containing entity model names to ignore. 
+     * @param {array|ArrayEx} ignoredModelsArray - An array or ArrayEx containing entity model names to ignore.
+     * @returns {TraceSettings} - This settings object, for chaining.
     */
     function SetIgnoredModels(ignoredModelsArray) {
         if(typeof ignoredModelsArray != "array" && typeof ignoredModelsArray != "ArrayEx") throw("TracePlus.Settings.SetIgnoredModels: Invalid argument type. Expected an 'array' or 'ArrayEx', but got " + typeof ignoredModelsArray)
@@ -95,20 +96,37 @@ TracePlus["Settings"] <- class {
         return this
     }
 
+    /*
+     * Sets the depth accuracy of the legacy bbox analyzer (USE_LEGACY_BBOXCAST_ANALYZER); the default analyzer
+     * does not use it. The legacy analyzer tests points 2 * depthAccuracy units apart along the ray, so lower
+     * values hit thinner objects at a higher cost.
+     *
+     * @param {number} value - The depth accuracy, clamped to 0.3..15. The default is 5.
+     * @returns {TraceSettings} - This settings object, for chaining.
+    */
     function SetDepthAccuracy(value) {
         this.depthAccuracy = math.clamp(value, 0.3, 15)
         return this
     }
 
+    /*
+     * Enables binary refinement of the bbox hit point. The legacy analyzer uses it to narrow its sampled hit
+     * down to the box entry. The default analyzer computes the entry point analytically; there the refinement
+     * only nudges the point so that it lies inside the hit box.
+     *
+     * @param {boolean} bool - True to enable the refinement. The default is false.
+     * @returns {TraceSettings} - This settings object, for chaining.
+    */
     function SetBynaryRefinement(bool) {
         this.bynaryRefinement = bool
         return this
     }
 
     /*
-     * Appends an entity classname to the list of ignored classes. 
+     * Appends an entity classname to the list of ignored classes. A list still shared with the defaults is copied first.
      *
-     * @param {string} className - The classname to append. 
+     * @param {string} className - The classname to append.
+     * @returns {TraceSettings} - This settings object, for chaining.
     */
     function AppendIgnoredClass(className) {
         if(typeof className != "string") throw("TracePlus.Settings.AppendIgnoredClass: Invalid argument type. Expected a 'string', but got " + typeof className)
@@ -124,9 +142,10 @@ TracePlus["Settings"] <- class {
     }
 
     /*
-     * Appends an entity classname to the list of priority classes. 
+     * Appends an entity classname to the list of priority classes. A list still shared with the defaults is copied first.
      *
-     * @param {string} className - The classname to append. 
+     * @param {string} className - The classname to append.
+     * @returns {TraceSettings} - This settings object, for chaining.
     */
     function AppendPriorityClasses(className) {
         if(typeof className != "string") throw("TracePlus.Settings.AppendPriorityClasses: Invalid argument type. Expected a 'string', but got " + typeof className)
@@ -140,9 +159,10 @@ TracePlus["Settings"] <- class {
     }
 
     /*
-     * Appends an entity model name to the list of ignored models. 
+     * Appends an entity model name to the list of ignored models. A list still shared with the defaults is copied first.
      *
-     * @param {string} modelName - The model name to append. 
+     * @param {string} modelName - The model name to append.
+     * @returns {TraceSettings} - This settings object, for chaining.
     */
     function AppendIgnoredModel(modelName) {
         if(typeof modelName != "string") throw("TracePlus.Settings.AppendIgnoredModel: Invalid argument type. Expected a 'string', but got " + typeof modelName)
@@ -183,9 +203,12 @@ TracePlus["Settings"] <- class {
     }
 
     /*
-     * Sets a custom function to determine if a ray should hit an entity. 
+     * Sets a custom function to determine if a ray should hit an entity.
+     * It is called with the candidate entity (a CBaseEntity); returning true lets the ray hit it
+     * regardless of the ignored classes and models. The ignore filter is checked first.
      *
-     * @param {function} filterFunction - The filter function to set. 
+     * @param {function|null} filterFunction - The filter function to set, or null to remove it.
+     * @returns {TraceSettings} - This settings object, for chaining.
     */
     function SetCollisionFilter(filterFunction) { // aka. SetHitFilter
         this.shouldRayHitEntity = filterFunction
@@ -193,9 +216,11 @@ TracePlus["Settings"] <- class {
     }
 
     /*
-     * Sets a custom function to determine if an entity should be ignored during a trace. 
+     * Sets a custom function to determine if an entity should be ignored during a trace.
+     * It is called with the candidate entity (a CBaseEntity); returning true makes the trace ignore it.
      *
-     * @param {function} filterFunction - The filter function to set. 
+     * @param {function|null} filterFunction - The filter function to set, or null to remove it.
+     * @returns {TraceSettings} - This settings object, for chaining.
     */
     function SetIgnoreFilter(filterFunction) {
         this.shouldIgnoreEntity = filterFunction
@@ -221,45 +246,42 @@ TracePlus["Settings"] <- class {
     }
 
     /*
-     * Applies the custom collision filter function to an entity. 
+     * Applies the custom collision filter function to an entity.
      *
-     * @param {CBaseEntity|pcapEntity} entity - The entity to check.
-     * @returns {boolean} - True if the ray should hit the entity, false otherwise. 
+     * @param {CBaseEntity} entity - The entity to check, passed to the filter as is.
+     * @returns {boolean} - The result of the filter, or false if no filter is set.
     */
     function ApplyCollisionFilter(entity) {
         return this.shouldRayHitEntity ? this.shouldRayHitEntity(entity) : false
     }
 
     /*
-     * Applies the custom ignore filter function to an entity. 
+     * Applies the custom ignore filter function to an entity.
      *
-     * @param {CBaseEntity|pcapEntity} entity - The entity to check.
-     * @returns {boolean} - True if the entity should be ignored, false otherwise. 
+     * @param {CBaseEntity} entity - The entity to check, passed to the filter as is.
+     * @returns {boolean} - The result of the filter, or false if no filter is set.
     */
     function ApplyIgnoreFilter(entity) {
         return this.shouldIgnoreEntity ? this.shouldIgnoreEntity(entity) : false
     }
 
     /*
-     * Updates the list of entities to ignore during a trace, including the player entity.
+     * Adds an entity to an ignoreEntities value: null gives the entity itself, an array or ArrayEx
+     * gets it appended in place, and a single entity is returned as a new array [newEnt, ignoreEntities].
      *
-     * @param {array|CBaseEntity|null} ignoreEntities - The current list of entities to ignore.
-     * @param {CBaseEntity|pcapEntity} newEnt - The new entity to add to the ignore list.
-     * @returns {array} - The updated list of entities to ignore. 
+     * @param {array|ArrayEx|CBaseEntity|pcapEntity|null} ignoreEntities - The current entities to ignore.
+     * @param {CBaseEntity|pcapEntity} newEnt - The entity to add.
+     * @returns {array|ArrayEx|CBaseEntity|pcapEntity} - The updated value: `newEnt`, the same array, or a new array.
     */
     function UpdateIgnoreEntities(ignoreEntities, newEnt) {
-        // Check if any entities should be ignored during the trace 
         if (ignoreEntities) {
-            // If ignoreEntities is an array, append the player entity to it 
             if (typeof ignoreEntities == "array" || typeof ignoreEntities == "ArrayEx") {
                 ignoreEntities.append(newEnt)
             }
-            // If ignoreEntities is a single entity, create a new array with both the player and ignoreEntities 
             else {
                 ignoreEntities = [newEnt, ignoreEntities]
             }
         }
-        // If no ignoreEntities is provided, ignore the player only 
         else {
             ignoreEntities = newEnt
         }
@@ -267,6 +289,11 @@ TracePlus["Settings"] <- class {
         return ignoreEntities
     }
 
+    /*
+     * Creates a copy of these settings. The class and model lists are copied, the filter functions are shared.
+     *
+     * @returns {TraceSettings} - The copy.
+    */
     function Clone() {
         local set = TracePlus.Settings()
             .SetIgnoredClasses(this.ignoreClasses.Clone())

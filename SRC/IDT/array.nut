@@ -1,18 +1,16 @@
 /*
-* Enhanced arrays module.
+ * ArrayEx: a wrapper around a native array with chainable methods and a table cache for contains().
 */
 ::ArrayEx <- class {
     // The internal array. 
     arr = null
     
-    // The internal table representation. 
+    // Cache for contains(): the tostring() of every non-null element as a key (see totable).
     table = null;
     tableIsValid = false;
     
     /*
-     * Constructor for ArrayEx.
-     * 
-     * Creates a new ArrayEx object from a variable number of arguments.
+     * Creates an ArrayEx that holds the given values.
      *
      * @param {...} ... - A variable number of arguments representing the initial elements of the array.
     */
@@ -26,7 +24,7 @@
     }
 
     /*
-     * Creates a new ArrayEx object from an existing array.
+     * Wraps a native array in a new ArrayEx without copying it.
      *
      * If the input array is already an ArrayEx object, it is returned directly.
      *
@@ -213,7 +211,7 @@
     }
 
     /*
-     * Return a new array with only unique elements.
+     * Return a new array without duplicates, keeping the first occurrence. Values are compared by their tostring().
      * 
      * @returns {ArrayEx} - The new array with unique elements.
     */
@@ -365,6 +363,11 @@
         return this.table
     }
 
+    /*
+     * Converts the array to a List.
+     *
+     * @returns {List} - A new List with the same elements.
+    */
     function tolist() {
         local list = List()
         foreach(idx, value in this.arr) {
@@ -393,6 +396,11 @@
             this.table[val.tostring()] <- null
     }
 
+    /*
+     * Creates a new ArrayEx with a shallow copy of the array.
+     *
+     * @returns {ArrayEx} - The copy.
+    */
     function Clone() {
         return ArrayEx.FromArray(clone this.arr)
     }
@@ -404,32 +412,10 @@
     */
     function _tostring() return format("Array: [%s]", this.join(", "))
     
-    /*
-     * Get the type name.
-     * 
-     * @returns {"ArrayEx"}
-    */
     function _typeof () return "ArrayEx";
-    
-    /*
-     * Get an element by index.
-     * 
-     * @param {int} idx - The index.
-     * @returns {any} - The element.
-    */
     function _get(idx) return arr[idx];
-    
-    /*
-     * Set an element by index.
-     * 
-     * @param {int} idx - The index.
-     * @param {any} val - The new value.
-    */
     function _set(idx, val) return arr[idx] = val;
-
     function _cloned() return this.Clone()
-
-
     function _nexti(previdx) {
         if(this.arr.len() == 0) return null
         if (previdx == null) return 0;

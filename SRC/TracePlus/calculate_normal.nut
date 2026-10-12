@@ -1,16 +1,15 @@
 /*
  * Calculates the normal vector of a triangle.
- * * @param {Vector} v1 - The first vertex. 
+ *
+ * @param {Vector} v1 - The first vertex.
  * @param {Vector} v2 - The second vertex.
- * @param {Vector} v3 - The third vertex. 
- * @returns {Vector} - The normal vector of the triangle. 
+ * @param {Vector} v3 - The third vertex.
+ * @returns {Vector} - The unit normal (v2 - v1) x (v3 - v1).
 */
 ::_calculateNormal <- function(v1, v2, v3) {
-    // Calculate two edge vectors of the triangle. 
     local edge1 = v2 - v1
     local edge2 = v3 - v1
 
-    // Calculate the normal vector using the cross product of the edge vectors.
     local normal = edge1.Cross(edge2)
     normal.Norm()
 
@@ -28,11 +27,15 @@ function _localDirToWorld(localDir, R) {
 }
 
 
-/* * Calculates the impact normal of a surface hit by a trace. 
+/*
+ * Calculates the impact normal of a world surface hit by a trace.
+ *
+ * Two more TraceLines run parallel to the trace, starting 5 units beside and above its start (8000 units long);
+ * their hit points and hitPos define the surface plane.
  *
  * @param {Vector} startPos - The start position of the trace.
  * @param {Vector} hitPos - The hit position of the trace.
- * @returns {Vector} - The calculated impact normal vector. 
+ * @returns {Vector} - The unit normal of that plane, facing against the trace direction.
 */
 ::CalculateImpactNormal <- function(startPos, hitPos) {
     const offset = 5.0;
@@ -58,6 +61,17 @@ function _localDirToWorld(localDir, R) {
     return normal
 }
 
+/*
+ * Calculates the impact normal on an entity's bounding box.
+ *
+ * The hit point is moved into the entity's local space (using its angles); the nearest face of the local
+ * bounds gives the normal, which is rotated back to world space.
+ *
+ * @param {Vector} startPos - The start position of the trace.
+ * @param {Vector} hitPos - The hit position on the entity.
+ * @param {pcapEntity|CBaseEntity} hitEntity - The entity that was hit.
+ * @returns {Vector} - The unit normal of the nearest bbox face, facing against the trace direction.
+*/
 ::CalculateImpactNormalFromBbox <- function(startPos, hitPos, hitEntity) {
     // Construct rotation matrix
     local angles = hitEntity.GetAngles()
@@ -105,4 +119,4 @@ function _localDirToWorld(localDir, R) {
     return nWorld
 }
 
-// todo inline all
+// todo: inline _calculateNormal, _worldToLocal and _localDirToWorld into their callers

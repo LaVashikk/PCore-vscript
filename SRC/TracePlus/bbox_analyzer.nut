@@ -140,7 +140,7 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities) {
         foreach(mask in ignoreEntities.iter()) ignoreIdxSet[mask.entindex()] <- true
     }
 
-    dev.debug("========================= TRACE START =========================")
+    // dev.debug("========================= TRACE START =========================") // REMOVE IT!!!!!!!
     for(local segment = 0.0; segment < 1.0; segment += JumpPercent) {
         //* "DIRTY" Search - collect candidate entities near the current segment
         local segmentCenter = startPos + dist * (segment + HalfJump)
@@ -201,6 +201,7 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities) {
 
             // This handles the specific case where the trace starts *inside* an entity's bounding box.
             if(segment == 0.0 && macros.PointInBBox(startPos, BEnt.bboxMin, BEnt.bboxMax)) {
+                // dev.debug("{} inside first segment - skipped", BEnt.entity.CBaseEntity)
                 BEnt.skipEntity = true
                 continue
             }
@@ -208,7 +209,7 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities) {
 
             // Quick broad-phase check
             if(BEnt.ignoreChecksCalc || RayAabbIntersectFast(segmentStart, segmentEnd, BEnt.bboxMin, BEnt.bboxMax)) {
-                dev.debug("Added {}", BEnt.entity) // DEBUG
+                // dev.debug("Added {}", BEnt.entity) // DEBUG
                 entBuffer.append(BEnt)
             } else {
                 BEnt.ignoreChecksCalc = true
@@ -467,31 +468,31 @@ function BboxTraceAnalyzer::shouldHitEntityCached(BEnt) {
     
     // Settings filters
     if(settings.ApplyIgnoreFilter(ent)) {
-        dev.debug("- {} IgnoreFilter", ent)
+        // dev.debug("- {} IgnoreFilter", ent)
         BEnt.cachedShouldHit = false
         return false
     }
     
     if(settings.ApplyCollisionFilter(ent)) {
-        dev.debug("- {} CollisionFilter", ent)
+        // dev.debug("- {} CollisionFilter", ent)
         BEnt.cachedShouldHit = true
         return true
     }
 
     // Use cached classname and modelname (no C++ calls!)
     if(_isIgnoredEntity(BEnt.classname) && !_isPriorityEntity(BEnt.classname)) {
-        dev.debug("- {} _isIgnoredEntity", ent)
+        // dev.debug("- {} _isIgnoredEntity", ent)
         BEnt.cachedShouldHit = false
         return false
     }
     
     if(_isIgnoredModels(BEnt.modelname)) {
-        dev.debug("- {} _isIgnoredModels", ent)
+        // dev.debug("- {} _isIgnoredModels", ent)
         BEnt.cachedShouldHit = false
         return false
     }
 
-    dev.debug("- {} none of all, then should!", ent)
+    // dev.debug("- {} none of all, then should!", ent)
     BEnt.cachedShouldHit = true
     return true
 }

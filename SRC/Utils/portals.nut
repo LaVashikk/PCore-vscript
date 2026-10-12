@@ -1,9 +1,14 @@
 ::InitedPortals <- {}
 
 /*
- * Creates a `func_portal_detector` entity with specified key-value pairs and settings for portal detection.
+ * Creates an enabled `func_portal_detector` with one extra key-value pair. Its bounds cover the whole map,
+ * and TracePlus ignores it.
  * 
  * This function is not part of the public API.
+ *
+ * @param {string} extraKey - The key of the extra key-value pair (e.g. "LinkageGroupID").
+ * @param {any} extraValue - The value of the extra key-value pair.
+ * @returns {pcapEntity} - The created detector.
 */
 ::_CreatePortalDetector <- function(extraKey, extraValue) {
     local detector = entLib.CreateByClassname("func_portal_detector", {solid = 0, CollisionGroup = 10})
@@ -18,22 +23,21 @@
 /*
  * Initializes a portal pair for portal casting (tracing lines through portals). 
  * 
- * This function creates a detector entity with a specific `LinkageGroupID` and connects its `OnStartTouchPortal`
- *  to a script function that sets the activator entity's health to the portal's `LinkageGroupID`. 
- * This allows for identifying the paired portal during portal traces. 
+ * Creates a `func_portal_detector` for the `LinkageGroupID` `id`. When a portal of this pair is placed,
+ * its health is set to `id`; when it is removed, to 9999. FindPartnerForPropPortal matches portals by this
+ * health to find the paired portal during portal traces.
  * 
- * @param {number} id - The ID of the portal pair.
+ * @param {number} id - The ID of the portal pair (`LinkageGroupID`).
+ * @returns {pcapEntity} - The detector of the pair. If the pair is already initialized, its existing detector.
 */
 ::InitPortalPair <- function(id) {
-    // If it was previously initialized, just turn on the detector.
     if(id in InitedPortals) return InitedPortals[id]
 
     local detector = _CreatePortalDetector("LinkageGroupID", id)
 
-    // The "free variables" syntax is different in Sq2 and Sq3, which is why I try to avoid executing it
+    // compilestring bakes `id` into the code instead of a free variable: that syntax differs between Squirrel 2 and 3.
     detector.ConnectOutputEx("OnStartTouchPortal", compilestring("activator.SetHealth(" + id + ")"))
     detector.ConnectOutputEx("OnEndTouchPortal", compilestring("activator.SetHealth(9999)"))
-    // Marking the portal as initialized
     InitedPortals[id] <- detector
     
     return detector
@@ -43,11 +47,10 @@
  * Initializes linked portal doors for portal tracing.
  * This function is not part of the public API.
  * 
- * This function iterates through all entities of class "linked_portal_door" and performs the following actions:
- * 1. Check if this entity has been processed before. 
- * 2. Extracts bounding box dimensions from the portal's model name (assuming a specific naming convention).
- * 3. Rotates the bounding box dimensions based on the portal's angles. 
- * 4. Sets the bounding box of the portal using the calculated dimensions. 
+ * For each `linked_portal_door` that has not been processed yet:
+ * 1. Hooks its Close and Open inputs: Close makes TracePlus ignore the door and its partner, Open makes them traceable again.
+ * 2. Sets its bounding box from the "width height" pair in its `model` keyvalue.
+ *    A door with an empty `model` keyvalue gets no bounding box.
  * 
  * This function is called automatically at the initialization.
 */
@@ -59,9 +62,7 @@
         if(p2) p2.SetTraceIgnore(state) 
         return true
     }
-    // Iterate through all linked_portal_door entities.  
     for(local portal; portal = entLib.FindByClassname("linked_portal_door", portal);) {
-        // Skip if the portal already processed
         if(portal.GetUserData("processed"))
             continue
     
@@ -70,30 +71,25 @@
 
         local partner = portal.GetPartnerInstance()
     
-        // Skip if the portal model name is empty (no bounding box information available).  
         if(portal.GetModelName() == "") 
             continue
         
-        // Extract bounding box dimensions from the model name (assuming a specific format). 
         local wpInfo = split(portal.GetModelName(), " ")
-        // Rotate the bounding box dimensions based on the portal's angles.  
         local wpBBox = math.vector.abs(Vector(8, wpInfo[0].tointeger(), wpInfo[1].tointeger()))
-        // Set the bounding box of the portal using the calculated dimensions.  
         portal.SetBBox(wpBBox * -1, wpBBox)
         portal.SetUserData("processed", true)
     }
 }
 
 /*
- * Finds the partner portal for a given `prop_portal` entity.
+ * Finds the partner portal for a given `prop_portal` entity: another `prop_portal` with the same pair ID
+ * in its health (set by the InitPortalPair detectors) that TracePlus does not ignore.
  * 
  * @param {pcapEntity} portal - The `prop_portal` entity to find the partner for. 
  * @returns {pcapEntity|null} - The partner portal entity, or `null` if no partner is found. 
 */
 ::FindPartnerForPropPortal <- function(portal) {    
-    // Find the partner portal entity based on the determined model name.  
     local portalPairId = portal.GetHealth()
-    // for(local partner; partner = entLib.FindByModel(mdl, partner);) { 
     for(local partner; partner = entLib.FindByClassname("prop_portal", partner);) { 
         local partnerPairId = partner.GetHealth() 
         if(portalPairId != partnerPairId || partner.entindex() == portal.entindex() || partner.GetClassname() != "prop_portal" || partner.GetUserData("TracePlusIgnore"))
@@ -106,10 +102,10 @@
 }
 
 /*
- * Checks if the given entity is a blue portal.
+ * Checks if the given `prop_portal` is a blue (primary) portal, by its model name.
  *
- * @param {pcapEntity} ent - The entity to check.
- * @returns {boolean} - True if the entity is a blue portal, false otherwise.
+ * @param {pcapEntity} ent - The `prop_portal` to check.
+ * @returns {boolean} - True if the model name does not contain "portal2" (the orange portal model), false otherwise.
 */
 ::IsBluePortal <- function(ent) { 
     return ent.GetModelName().find("portal2") == null

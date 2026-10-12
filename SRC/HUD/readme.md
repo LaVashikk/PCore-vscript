@@ -107,6 +107,8 @@ myText.SetText("New message").Update() // Change the message and update the disp
 
 Changes the message of the text display.
 
+> **Note:** the engine keeps every distinct message in its string pool until the map changes, and a full pool crashes the game (`CUtlRBTree overflow`). Pushing a new unique text every frame (timers, coordinates, floats) will eventually do that in a long session. Update the text less often or round the values.
+
 **Parameters:**
 
 *   `message` (string): The new text message to display.
@@ -344,6 +346,8 @@ myHint.SetText("New hint message").Update() // Change the message and update the
 #### `HUD.HintInstructor.SetText(message)`
 
 Changes the message of the hint.
+
+> **Note:** the same engine string pool limit as for [`HUD.ScreenText.SetText`](#hudscreentextsettextmessage) applies: avoid a new unique text every frame.
 
 **Parameters:**
 

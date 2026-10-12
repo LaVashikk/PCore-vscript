@@ -38,6 +38,8 @@ class HudDebugDemo {
         info += "FrameTime: " + FrameTime()
 
         // Update the text content and refresh the display.
+        // Debug-only pattern: every unique text stays in the engine string pool until the map changes,
+        // so a shipped map should not push a new unique string ten times a second for hours.
         this.textElement.SetText(info).Update()
 
         // 2. Debug Visualization.

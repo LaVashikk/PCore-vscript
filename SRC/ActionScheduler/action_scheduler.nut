@@ -2,10 +2,10 @@
  * Adds a single action to a scheduled event with the specified name.
  *
  * @param {string|any} eventName - The name of the event to add the action to. If the event does not exist, it is created.
- * @param {string|function} action - The action to execute when the scheduled time arrives. This can be a string containing VScripts code or a function object.
+ * @param {string|function|generator} action - The action to execute when the scheduled time arrives: a function, a generator or a string of VScript code.
  * @param {number} timeDelay - The delay in seconds before executing the action.
  * @param {array|null} args - An optional array of arguments to pass to the action function.
- * @param {object} scope - The scope in which to execute the action (default is `this`). 
+ * @param {object} scope - The object used as `this` when the action runs (default is the root table).
 */
 ScheduleEvent["Add"] <- function(eventName, action, timeDelay, args = null, scope = this) {
     if (typeof action != "string" && typeof action != "function" && typeof action != "native function" && typeof action != "generator") throw("ScheduleEvent.Add: 'action' must be a function or a string, but got " + typeof action);
@@ -21,13 +21,12 @@ ScheduleEvent["Add"] <- function(eventName, action, timeDelay, args = null, scop
     local newScheduledEvent = ScheduleAction(scope, action, timeDelay, args)
     local currentActionList = ScheduleEvent.eventsList[eventName]
 
-
+    // Keep the queue sorted by execution time: ScheduledEventLoop stops at the first action that is not due.
     if(currentActionList.len() == 0 || currentActionList.top() <= newScheduledEvent) {
         currentActionList.append(newScheduledEvent)
         return
     } 
     
-    //* --- A binary search.
     local low = 0
     local high = currentActionList.len() - 1
     local mid
@@ -51,15 +50,16 @@ ScheduleEvent["Add"] <- function(eventName, action, timeDelay, args = null, scop
 }
 
 /*
- * Adds an action to a scheduled event that will be executed repeatedly at a fixed interval. 
+ * Adds an action to a scheduled event that will be executed repeatedly at a fixed interval.
+ * It repeats until its event is cancelled; intervals in "global" cannot be cancelled.
  *
  * @param {string|any} eventName - The name of the event to add the interval to. If the event does not exist, it is created.
- * @param {string|function} action - The action to execute at each interval.
- * @param {number} interval - The time interval in seconds between executions of the action.
- * @param {number} initialDelay - The initial delay in seconds before the first execution of the action (default is 0). 
- * @param {array|null} args - An optional array of arguments to pass to the action function. 
- * @param {object} scope - The scope in which to execute the action (default is `this`). 
-*/ 
+ * @param {string|function|generator} action - The action to execute at each interval.
+ * @param {number} interval - The time interval in seconds between executions of the action. Must be greater than 0.
+ * @param {number} initialDelay - The initial delay in seconds before the first execution of the action (default is 0).
+ * @param {array|null} args - An optional array of arguments to pass to the action function.
+ * @param {object} scope - The object used as `this` when the action runs (default is the root table).
+*/
 ScheduleEvent["AddInterval"] <- function(eventName, action, interval, initialDelay = 0, args = null, scope = this) {
     if (typeof action != "string" && typeof action != "function" && typeof action != "native function" && typeof action != "generator") throw("ScheduleEvent.AddInterval: 'action' must be a function or a string, but got " + typeof action);
     if (typeof interval != "integer" && typeof interval != "float") throw("ScheduleEvent.AddInterval: 'interval' must be a number, but got " + typeof interval);
@@ -74,14 +74,15 @@ ScheduleEvent["AddInterval"] <- function(eventName, action, interval, initialDel
 }
 
 /*
- * Adds multiple actions to a scheduled event, ensuring they are sorted by execution time.
+ * Adds multiple actions to a scheduled event.
+ *
+ * An existing event gets the actions appended and is re-sorted by execution time. For a new event, the container
+ * is sorted in place (unless `noSort`) and becomes the event's queue: a List is used as is, other containers are copied into a List.
  *
  * @param {string|any} eventName - The name of the event to add the actions to. If the event does not exist, it is created.
- * @param {array|List} actions - An array or List of `ScheduleAction` objects to add to the event.
- * @param {boolean} noSort - If true, the actions will not be sorted by execution time (default is false).
- * 
- * **Caution:** Use the `noSort` parameter with care. Incorrect usage may lead to unexpected behavior or break the event scheduling logic. 
-*/ 
+ * @param {array|ArrayEx|List} actions - The `ScheduleAction` objects to add to the event.
+ * @param {boolean} noSort - Skip sorting when the event is new; the actions must already be sorted by execution time (default is false).
+*/
 ScheduleEvent["AddActions"] <- function(eventName, actions, noSort = false) { 
     local actionsType = typeof actions;
     if (actionsType != "array" && actionsType != "List" && actionsType != "ArrayEx") throw("ScheduleEvent.AddActions: 'actions' must be an array or a List, but got " + actionsType);
@@ -111,11 +112,12 @@ ScheduleEvent["AddActions"] <- function(eventName, actions, noSort = false) {
 
 
 /*
- * Cancels a scheduled event with the given name, optionally after a delay.
+ * Cancels a scheduled event with the given name, optionally after a delay. Its pending actions are dropped.
  *
  * @param {string|any} eventName - The name of the event to cancel.
- * @param {number} delay - An optional delay in seconds before canceling the event.
-*/  
+ * @param {number} delay - An optional delay in seconds before canceling the event (default is 0).
+ * @throws - If `eventName` is "global" or no event with this name exists.
+*/
 ScheduleEvent["Cancel"] <- function(eventName, delay = 0) {
     if(eventName == "global")
         throw("The global event cannot be closed!")
@@ -131,13 +133,12 @@ ScheduleEvent["Cancel"] <- function(eventName, delay = 0) {
 
 /*
  * Attempts to cancel a scheduled event with the given name, optionally after a delay.
+ * Unlike `ScheduleEvent.Cancel`, a missing event is not an error.
  *
  * @param {string|any} eventName - The name of the event to cancel.
- * @param {number} delay - An optional delay in seconds before attempting to cancel the event.
- * @returns {boolean} - True if the event was found and canceled, false otherwise.
- * 
- * This function is similar to `ScheduleEvent.Cancel`, but it does not throw an error if the event is not found.
- * It's useful for situations where you're unsure if an event exists and want to attempt cancellation without risking errors.
+ * @param {number} delay - An optional delay in seconds before attempting to cancel the event (default is 0).
+ * @returns {boolean|null} - True if the event was found and canceled, false otherwise. Null if `delay` > 0: the attempt is only scheduled.
+ * @throws - If `eventName` is "global".
 */
 ScheduleEvent["TryCancel"] <- function(eventName, delay = 0) {
     if(delay > 0) 
@@ -148,16 +149,16 @@ ScheduleEvent["TryCancel"] <- function(eventName, delay = 0) {
 }
 
 /*
-* Cancels all scheduled events and actions, effectively clearing the event scheduler.
+ * Cancels all scheduled events except "global", dropping their pending actions.
 */
 ScheduleEvent["CancelAll"] <- function() {
     ScheduleEvent.eventsList = {global = ScheduleEvent.eventsList["global"]}
     dev.trace("Scheduled events have been canceled!")
 }
 
-/* 
-* Cancels all scheduled events and actions, EVEN GLOBAL!! effectively clearing the event scheduler.
-* Undocumented unsafe function. You must understand what you are doing!
+/*
+ * Cancels all scheduled events, including "global".
+ * "global" also holds the library's own intervals; they are not restarted.
 */
 ScheduleEvent["UNSAFE_ClearWithGlobal"] <- function() {
     ScheduleEvent.eventsList = {global = List()}
@@ -166,10 +167,10 @@ ScheduleEvent["UNSAFE_ClearWithGlobal"] <- function() {
 
 
 /*
- * Gets info about a scheduled event.
- * 
- * @param {string|any} eventName - Name of event to get info for.
- * @returns {List|null} - The event info object or null if not found.
+ * Gets the pending actions of a scheduled event.
+ *
+ * @param {string|any} eventName - The name of the event.
+ * @returns {List|null} - The event's queue of ScheduleAction objects (the live List, not a copy), or null if not found.
 */
 ScheduleEvent["GetEvent"] <- function(eventName) {
     return eventName in ScheduleEvent.eventsList ? ScheduleEvent.eventsList[eventName] : null
@@ -177,10 +178,10 @@ ScheduleEvent["GetEvent"] <- function(eventName) {
 
 
 /*
- * Checks if event is valid
- * 
- * @param {string|any} eventName - Name of event to get info for.
- * @returns {bool} - Object exists or not.
+ * Checks whether a scheduled event with the given name exists.
+ *
+ * @param {string|any} eventName - The name of the event.
+ * @returns {boolean} - True if the event exists.
 */
 ScheduleEvent["IsValid"] <- function(eventName) {
     return eventName in ScheduleEvent.eventsList

@@ -1,13 +1,13 @@
-/* 
- * Listens for and handles custom "game events".
+/*
+ * Triggers and looks up VGameEvent objects by name.
 */
 ::EventListener <- {
     /*
-     * Notifies the listener of a triggered event.
+     * Triggers the VGameEvent with the given name (see VGameEvent.Trigger). An unknown name only prints a developer warning.
      *
-     * @param {string} eventName - The name of the triggered event.
-     * @param {any} ... - Optional arguments associated with the event. 
-     * @returns {any|null} - The result of the event's action, or null if the event is not found or the filter fails. 
+     * @param {string} eventName - The name of the event to trigger.
+     * @param {any} ... - Optional arguments passed to each action.
+     * @returns {boolean|null} - True if the actions ran; null if the event is unknown, has no actions, has no triggers left or its filter rejected the args.
     */
     function Notify(eventName, ...) {
         if((eventName in AllScriptEvents) == false)

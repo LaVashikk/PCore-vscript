@@ -3,11 +3,11 @@ local mVector = math["vector"]
 
 /*
  * Checks if two vectors are approximately equal, within a certain precision.
- * This function rounds the components of both vectors before comparing them.
+ * Rounds the components of both vectors in place (see math.vector.round), then compares them.
  *
  * @param {Vector} vector - The first vector.
  * @param {Vector} other - The second vector.
- * @param {int} precision - The precision factor (e.g., 1000 for rounding to three decimal places).
+ * @param {int} precision - The precision factor (e.g., 1000 for rounding to three decimal places). (optional, default 1000)
  * @returns {boolean} - True if the vectors are approximately equal, false otherwise.
 */
 mVector["IsEqual"] <- function(vector, other, precision = 1000) {
@@ -46,7 +46,7 @@ mVector["mul"] <- function(vector, other) {
 }
 
 /*
- * Rotates a vector by a given angle.
+ * Rotates a vector by Euler angles.
  *
  * @param {Vector} vector - The vector to rotate.
  * @param {Vector} angle - The Euler angles in degrees (pitch, yaw, roll) representing the rotation.
@@ -57,7 +57,7 @@ mVector["rotate"] <- function(vector, angle) {
 }
 
 /*
- * Un-rotates a vector by a given angle.
+ * Un-rotates a vector by Euler angles: the inverse of math.vector.rotate.
  *
  * @param {Vector} vector - The vector to un-rotate.
  * @param {Vector} angle - The Euler angles in degrees (pitch, yaw, roll) representing the rotation to reverse.
@@ -87,7 +87,7 @@ mVector["random"] <- function(min, max) {
  * Reflects a direction vector off a surface with a given normal.
  *
  * @param {Vector} dir - The direction vector to reflect.
- * @param {Vector} normal - The normal vector of the surface.
+ * @param {Vector} normal - The unit normal vector of the surface.
  * @returns {Vector} - The reflected direction vector.
 */
 mVector["reflect"] <- function(dir, normal) {
@@ -98,8 +98,8 @@ mVector["reflect"] <- function(dir, normal) {
  * Clamps the components of a vector within the specified range.
  *
  * @param {Vector} vector - The vector to clamp.
- * @param {number} min - The minimum value for each component.
- * @param {number} max - The maximum value for each component.
+ * @param {number} min - The minimum value for each component. (optional, default 0)
+ * @param {number} max - The maximum value for each component. (optional, default 255)
  * @returns {Vector} - The clamped vector.
 */
 mVector["clamp"] <- function(vector, min = 0, max = 255) {
@@ -109,7 +109,7 @@ mVector["clamp"] <- function(vector, min = 0, max = 255) {
 /*
  * Resizes a vector to a new length while maintaining its direction.
  *
- * @param {Vector} vector - The vector to resize.
+ * @param {Vector} vector - The vector to resize, with a non-zero length.
  * @param {number} newLength - The desired new length of the vector.
  * @returns {Vector} - The resized vector with the specified length.
 */
@@ -119,11 +119,11 @@ mVector["resize"] <- function(vector, newLength) {
 }
 
 /*
- * Rounds the elements of a vector to the specified precision.
+ * Rounds the components of a vector to the specified precision, in place.
  *
  * @param {Vector} vec - The vector to round.
- * @param {int} precision - The precision (e.g., 1000 for rounding to three decimal places).
- * @returns {Vector} - The rounded vector.
+ * @param {int} precision - The precision (e.g., 1000 for rounding to three decimal places). (optional, default 1000)
+ * @returns {Vector} - The same vector, rounded.
 */
 mVector["round"] <- function(vec, precision = 1000) {
     vec.x = floor(vec.x * precision + 0.5) / precision

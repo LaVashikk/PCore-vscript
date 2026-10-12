@@ -4,8 +4,8 @@
 | Author:                                                                          |
 |     Squirrel Whisperer - laVashik :>                                             |
 +----------------------------------------------------------------------------------+
-|       A toolbox of versatile utilities for script execution, debugging, file     |
-|       operations, and entity manipulation, empowering VScripts developers.       | 
+|       Debug drawing and logging, file I/O, player hooks, portal pair tracking,   |
+|       engine function overrides, macros, constants and console commands.         |
 +----------------------------------------------------------------------------------+ */ 
 
 IncludeScript("PCapture-LIB/SRC/Utils/debug")

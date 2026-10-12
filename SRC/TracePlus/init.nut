@@ -22,10 +22,16 @@
 
 ::USE_LEGACY_BBOXCAST_ANALYZER <- false
 
+/*
+ * Drops the cached bbox data of an entity, so the next bbox trace rebuilds it.
+ * The cache only notices origin changes; use this after rotating or resizing an entity in place.
+ *
+ * @param {CBaseEntity|pcapEntity} ent - The entity to invalidate.
+*/
 function TracePlus::InvalidateEntity(ent) {
     local idx = ent.entindex()
     if(idx in EntBufferTable) {
-        EntBufferTable[idx].lastFrameTime = -1
+        EntBufferTable.rawdelete(idx)
     }
 }
 

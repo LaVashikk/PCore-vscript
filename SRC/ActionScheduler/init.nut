@@ -10,7 +10,7 @@
 
 
 ::ScheduleEvent <- {
-    // Object to store scheduled events 
+    // Event name -> List of pending ScheduleAction objects, sorted by execution time. "global" always exists.
     eventsList = {global = List()},
     
     Add = null,
@@ -29,7 +29,7 @@ IncludeScript("PCapture-LIB/SRC/ActionScheduler/action")
 IncludeScript("PCapture-LIB/SRC/ActionScheduler/action_scheduler")
 IncludeScript("PCapture-LIB/SRC/ActionScheduler/event_handler")
 
-// Create a logic_timer to process the event loop.
+// A logic_timer runs ScheduledEventLoop every tick.
 if(!Entities.FindByName(null, "@ScheduledEventLoop")) {
     local timer = entLib.CreateByClassname("logic_timer", {RefireTime=0.001, targetname="@ScheduledEventLoop"})
     timer.ConnectOutput("OnTimer", "ScheduledEventLoop")

@@ -8,7 +8,7 @@ results["Cheap"] <- class {
     portalEntryInfo = null;
 
     /*
-     * Constructor for a CheapTraceResult object.
+     * Constructor for the result of a cheap trace. Its `typeof` is "TraceResult".
      *
      * @param {table} traceHandler - The trace handler object containing trace information.
      * @param {Vector} hitpos - The hit position of the trace.
@@ -74,18 +74,18 @@ results["Cheap"] <- class {
     }
 
     /*
-     * Gets the portal entry information for the trace.
-     * 
-     * @returns {CheapTraceResult|null} - The portal entry information, or null if not available.
+     * Gets the trace that entered the portal this trace continues from (portal casting only).
+     *
+     * @returns {TraceResult|null} - The previous trace, or null for the first one.
     */
     function GetPortalEntryInfo() {
         return this.portalEntryInfo
     }
 
     /*
-     * Gets an array of all portal entry information for the trace, including nested portals.
-     * 
-     * @returns {List} - An array of CheapTraceResult objects representing portal entries.
+     * Gets every trace of a portal casting, from the first one to this one.
+     *
+     * @returns {List} - The TraceResult objects in cast order, this trace last.
     */
     function GetAggregatedPortalEntryInfo() {
         local list = List(this)
@@ -97,11 +97,11 @@ results["Cheap"] <- class {
 
     /*
      * Gets the impact normal of the surface hit by the trace.
+     * Calculated with CalculateImpactNormal on the first call, then cached.
      *
      * @returns {Vector} - The impact normal vector.
     */
     function GetImpactNormal() {
-        // If the surface normal is already calculated, return it
         if(this.surfaceNormal)
             return this.surfaceNormal
         
@@ -132,7 +132,7 @@ results["Bbox"] <- class {
      *
      * @param {table} traceHandler - The trace handler object containing trace information.
      * @param {Vector} hitpos - The hit position of the trace.
-     * @param {CBaseEntity} hitent - The entity hit by the trace.
+     * @param {pcapEntity|null} hitent - The entity hit by the trace, or null.
     */
     constructor(traceHandler, hitpos, hitent) {
         this.traceHandler = traceHandler
@@ -170,7 +170,7 @@ results["Bbox"] <- class {
     /*
      * Gets the entity hit by the trace.
      *
-     * @returns {pcapEntity|null} - The hit entity, or null if no entity was hit.
+     * @returns {pcapEntity|null} - The hit entity, or null if no entity was hit or it is no longer valid.
     */
     function GetEntity() {
         if(this.hitent && this.hitent.IsValid())
@@ -180,16 +180,16 @@ results["Bbox"] <- class {
     /*
      * Gets the classname of the entity hit by the trace.
      *
-     * @returns {string|null} - The classname of the hit entity, or null if no entity was hit.
+     * @returns {string|null} - The classname of the hit entity, or null if no entity was hit or it is no longer valid.
     */
     function GetEntityClassname() {
         return (this.hitent && this.hitent.IsValid()) ? this.hitent.GetClassname() : null 
     }
 
     /*
-     * Gets the list of entities that were ignored during the trace. 
+     * Gets the list of entities that were ignored during the trace.
      *
-     * @returns {array|CBaseEntity|null} - The list of ignored entities, or null if no entities were ignored.
+     * @returns {array|ArrayEx|List|CBaseEntity|pcapEntity|null} - The `ignoreEntities` value the trace was called with.
     */
     function GetIngoreEntities() {
         return this.traceHandler.ignoreEntities
@@ -219,7 +219,7 @@ results["Bbox"] <- class {
      * @returns {boolean} - True if the trace hit the world, false otherwise.
     */
     function DidHitWorld() {
-        return !this.hitent && DidHit()
+        return !this.GetEntity() && DidHit()
     }
 
     /*
@@ -242,18 +242,18 @@ results["Bbox"] <- class {
     }
 
     /*
-     * Gets the portal entry information for the trace. 
-     * 
-     * @returns {BboxTraceResult|null} - The portal entry information, or null if not available.
+     * Gets the cast that entered the portal this cast continues from (portal casting only).
+     *
+     * @returns {BboxTraceResult|null} - The previous cast, or null for the first one.
     */
     function GetPortalEntryInfo() {
         return this.portalEntryInfo
     }
 
     /*
-     * Gets an array of all portal entry information for the trace, including nested portals.
-     * 
-     * @returns {List} - An array of BboxTraceResult objects representing portal entries.
+     * Gets every cast of a portal casting, from the first one to this one.
+     *
+     * @returns {List} - The BboxTraceResult objects in cast order, this cast last.
     */
     function GetAggregatedPortalEntryInfo() {
         local list = List(this)
@@ -265,11 +265,12 @@ results["Bbox"] <- class {
 
     /*
      * Gets the impact normal of the surface hit by the trace.
+     * Calculated on the first call, then cached: CalculateImpactNormalFromBbox for a valid hit entity,
+     * CalculateImpactNormal otherwise.
      *
      * @returns {Vector} - The impact normal vector.
     */
     function GetImpactNormal() {
-        // If the surface normal is already calculated, return it
         if(this.surfaceNormal)
             return this.surfaceNormal
 

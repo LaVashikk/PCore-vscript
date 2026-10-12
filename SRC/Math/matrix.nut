@@ -4,8 +4,8 @@ math["Matrix"] <- class {
     g = 0; h = 0; k = 1;
 
     /*
-     * Creates a new matrix.
-     * 
+     * Creates a new matrix. All parameters are optional; the defaults form the identity matrix.
+     *
      * @param {number} a - The value at row 1, column 1.
      * @param {number} b - The value at row 1, column 2.
      * @param {number} c - The value at row 1, column 3.
@@ -26,7 +26,7 @@ math["Matrix"] <- class {
         }
     /*
      * Creates a rotation matrix from Euler angles.
-     * 
+     *
      * @param {Vector} angles - Euler angles in degrees (pitch, yaw, roll).
      * @returns {Matrix} - The rotation matrix.
     */
@@ -46,7 +46,7 @@ math["Matrix"] <- class {
 
     /*
      * Rotates a point using the matrix.
-     * 
+     *
      * @param {Vector} point - The point to rotate.
      * @returns {Vector} - The rotated point.
     */
@@ -59,8 +59,8 @@ math["Matrix"] <- class {
     }
 
     /*
-     * Unrotates a point using the matrix.
-     * 
+     * Unrotates a point: multiplies it by the transposed matrix, which is the inverse of a rotation matrix.
+     *
      * @param {Vector} point - The point to unrotate.
      * @returns {Vector} - The unrotated point.
     */
@@ -74,7 +74,7 @@ math["Matrix"] <- class {
 
     /*
      * Transposes the matrix.
-     * 
+     *
      * @returns {Matrix} - The transposed matrix.
     */
     function transpose() {
@@ -87,9 +87,9 @@ math["Matrix"] <- class {
 
     /*
      * Calculates the inverse of the matrix.
-     * 
+     *
      * @returns {Matrix} - The inverse matrix.
-     * @throws {Error} - If the matrix is singular (determinant is zero).
+     * @throws - If the matrix is singular (determinant is zero).
     */
     function inverse() {
         local det = this.determinant();
@@ -112,7 +112,7 @@ math["Matrix"] <- class {
 
     /*
      * Calculates the determinant of the matrix.
-     * 
+     *
      * @returns {number} - The determinant of the matrix.
     */
     function determinant() {
@@ -123,7 +123,7 @@ math["Matrix"] <- class {
 
     /*
      * Scales the matrix by a given factor.
-     * 
+     *
      * @param {number} factor - The scaling factor.
      * @returns {Matrix} - The scaled matrix.
     */
@@ -136,8 +136,8 @@ math["Matrix"] <- class {
     }
 
     /*
-     * Rotates the matrix around the X axis by a given angle.
-     * 
+     * Rotates the matrix around the X axis: returns the X rotation matrix multiplied by this matrix.
+     *
      * @param {number} angle - The angle of rotation in radians.
      * @returns {Matrix} - The rotated matrix.
     */
@@ -152,8 +152,8 @@ math["Matrix"] <- class {
     }
 
     /*
-     * Multiplies two matrices.
-     * 
+     * Multiplies two matrices (this * other).
+     *
      * @param {Matrix} other - The other matrix.
      * @returns {Matrix} - The result of the multiplication.
     */
@@ -173,7 +173,7 @@ math["Matrix"] <- class {
 
     /*
      * Adds two matrices.
-     * 
+     *
      * @param {Matrix} other - The other matrix.
      * @returns {Matrix} - The result of the addition.
     */
@@ -187,7 +187,7 @@ math["Matrix"] <- class {
 
     /*
      * Subtracts two matrices.
-     * 
+     *
      * @param {Matrix} other - The other matrix.
      * @returns {Matrix} - The result of the subtraction.
     */
@@ -214,15 +214,16 @@ math["Matrix"] <- class {
      *
      * @param {Matrix} other - The other matrix to compare.
      * @returns {number} - 1 if this matrix's sum is greater, -1 if less, 0 if equal.
+     * @throws - If `other` is not a Matrix.
     */
     function cmp(other) {
         if (typeof other != "Matrix") {
             throw "Cannot compare matrix with non-matrix type";
         }
-    
+
         local thisSum = a + b - c + d + e + f - g + h - k;
         local otherSum = other.a + other.b - other.c + other.d + other.e + other.f - other.g + other.h - other.k;
-        
+
         if (thisSum > otherSum) {
             return 1;
         } else if (thisSum < otherSum) {

@@ -1,25 +1,25 @@
 /*
  * Represents a scheduled action.
  *
- * This class encapsulates information about an action that is scheduled to be executed at a specific time.
+ * One entry of an event queue in ScheduleEvent.eventsList; `_cmp` orders entries by execution time.
 */
 ::ScheduleAction <- class {
-    // The entity that created the event. 
+    // The object used as `this` when the action runs.
     scope = null;
-    // The action to execute when the scheduled time arrives.  
+    // The function, generator or VScript code string to execute.
     action = null;
-    // The time at which the action is scheduled to be executed. 
+    // The game time (Time()) at which the action is due.
     executionTime = null;
-    // Optional arguments to pass to the action function.  
+    // Optional arguments to pass to the action function.
     args = null;
 
     /*
      * Constructor for a ScheduleAction object.
      *
-     * @param {pcapEntity} scope - The entity that created the event.
-     * @param {string|function} action - The action to execute when the event is triggered.
-     * @param {number} delay - The time at which the event is scheduled to be executed.
-     * @param {array|null} args - Optional arguments to pass to the action function. 
+     * @param {object} scope - The object used as `this` when the action runs.
+     * @param {string|function|generator} action - The function or generator to run, or a string of VScript code.
+     * @param {number} delay - The delay in seconds; the action is due at Time() + delay.
+     * @param {array|null} args - Optional arguments to pass to the action function.
     */
     constructor(scope, action, delay, args = null) {
         this.scope = scope
@@ -30,13 +30,13 @@
         this.args = args
     }
 
-    /* 
-     * Executes the scheduled action. 
+    /*
+     * Executes the scheduled action with `scope` as `this`.
      *
-     * If the action is a string, it is compiled into a function before execution.
-     * If arguments are provided, they are passed to the action function. 
+     * If the action is a string, it is compiled into a function on the first run and replaces `action`.
+     * If arguments are provided, they are passed to the action function.
      *
-     * @returns {any} - The result of the action function. 
+     * @returns {any} - The result of the action function.
     */
     function run() {
         if(type(this.action) == "string")
@@ -45,27 +45,31 @@
         if(this.args == null) {
             return this.action.call(scope)
         }
-        
+
         local actionArgs = [this.scope]
         actionArgs.extend(this.args)
         return this.action.acall(actionArgs)
     }
 
     /*
-     * Processes a generator action.
-     * 
-     * @param {Generator} generator - The generator to be processed.
-     * @returns {any} - The result of processing the generator.
+     * Resumes a generator action once and schedules the next resume.
+     *
+     * The yielded number is the pause in seconds before the next resume; 0 or less waits one frame.
+     * A bare `yield` (null) or the end of the generator stops it. If the event no longer exists,
+     * the generator is dropped with a developer warning.
+     *
+     * @param {generator} generator - The generator to resume.
+     * @param {string|any} eventName - The event the generator is added to again.
     */
     function processGenerator(generator, eventName) {
         if(generator.getstatus() == "dead") return
         local delay = resume generator
         if(delay == null) return
-        
-        try {delay = delay.tofloat()} 
+
+        try {delay = delay.tofloat()}
         catch(err) {throw "Invalid value for sleep. " + err}
         if (delay <= 0.0) delay = FrameTime()
-        
+
         if(eventName in ScheduleEvent.eventsList) {
             ScheduleEvent.Add(eventName, generator, delay, null, this.scope)
         } else {
@@ -73,12 +77,17 @@
         }
     }
 
+    /*
+     * Describes the action for error output.
+     *
+     * @returns {string} - The scope, action and execution time, one per line.
+    */
     function GetInfo() return "[Scope] " + scope + "\n[Action] " + this.action + "\n[executionTime] " + executionTime
     function _typeof() return "ScheduleAction"
     function _tostring() return "ScheduleAction: (" + this.executionTime + ")"
-    function _cmp(other) {    
+    function _cmp(other) {
         if (this.executionTime > other.executionTime) return 1;
         else if (this.executionTime < other.executionTime) return -1;
-        return 0; 
+        return 0;
     }
 }

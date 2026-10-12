@@ -50,4 +50,5 @@
             if(developer() > 0) dev.trace("Event {} closed.", eventName)
         }
     }
+    eventsToDelete.clear()
 }
