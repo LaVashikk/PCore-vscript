@@ -1,5 +1,6 @@
 /*
- * Performs a bbox cast (trace with bounding box) from the specified start and end positions. 
+ * Performs a bbox cast: a ray that stops at world geometry (TraceLine) or at the first entity bounding box
+ * it enters, filtered by the settings. See BboxTraceAnalyzer::Trace.
  *
  * @param {Vector} startPos - The start position of the trace.
  * @param {Vector} endPos - The end position of the trace.
@@ -7,7 +8,7 @@
  * @param {TraceSettings} settings - The settings to use for the trace. (optional, defaults to TracePlus.defaultSettings) 
  * @returns {BboxTraceResult} - The trace result object. 
 */
-TracePlus["Bbox"] <- function(startPos, endPos, ignoreEntities = null, settings = TracePlus.defaultSettings) {
+TracePlus["Bbox"] <- function(startPos, endPos, ignoreEntities = null, settings = TracePlus.defaultSettings, insideTestPos = null) { // todo: fucking insideTestPos here! its garbage
     if(typeof startPos != "Vector") throw("TracePlus.Bbox: 'startPos' argument must be a Vector, but got " + typeof startPos);
     if(typeof endPos != "Vector") throw("TracePlus.Bbox: 'endPos' argument must be a Vector, but got " + typeof endPos);
     if(typeof settings != "TraceSettings")  throw("TracePlus.Bbox: 'settings' argument must be a TraceSettings, but got " + typeof settings);
@@ -32,28 +33,26 @@ TracePlus["Bbox"] <- function(startPos, endPos, ignoreEntities = null, settings 
     SCOPE.ignoreEntities <- ignoreEntities 
     SCOPE.settings <- settings
 
-    local BboxAnalyzer = USE_LEGACY_BBOXCAST_ANALYZER ? LegacyBboxAnalyzer : BboxTraceAnalyzer
-    local result = BboxAnalyzer(startPos, endPos, ignoreEntities, settings)
+    // todo: remove LEGACY from code! 
+    local result = BboxTraceAnalyzer(startPos, endPos, ignoreEntities, settings, insideTestPos)
     
     return TracePlus.Result.Bbox(SCOPE, result.hitpos, result.hitent)
 }
 
 /*
- * Performs a bbox cast from the player's eyes. 
+ * Performs a bbox cast from the player's eyes. The player itself is always ignored.
  *
- * @param {number} distance - The distance of the trace. 
+ * @param {number} distance - The distance of the trace.
  * @param {CBaseEntity|pcapEntity} player - The player entity.
- * @param {array|CBaseEntity|null} ignoreEntities - A list of entities or a single entity to ignore during the trace. (optional)
- * @param {TraceSettings} settings - The settings to use for the trace. (optional, defaults to TracePlus.defaultSettings) 
- * @returns {BboxTraceResult} - The trace result object. 
+ * @param {array|ArrayEx|List|CBaseEntity|pcapEntity|null} ignoreEntities - A list of entities or a single entity to ignore during the trace. (optional)
+ * @param {TraceSettings} settings - The settings to use for the trace. (optional, defaults to TracePlus.defaultSettings)
+ * @returns {BboxTraceResult} - The trace result object.
 */
 TracePlus["FromEyes"]["Bbox"] <- function(distance, player, ignoreEntities = null, settings = TracePlus.defaultSettings) {
-    // Calculate the start and end positions of the trace
     local startPos = player.EyePosition()
     local endPos = macros.GetEyeEndpos(player, distance)
 
     ignoreEntities = TracePlus.Settings.UpdateIgnoreEntities(ignoreEntities, player)
 
-    // Perform the bboxcast trace and return the trace result
     return TracePlus.Bbox(startPos, endPos, ignoreEntities, settings)
 }

@@ -4,7 +4,7 @@
 */
 TracePlus["Settings"] <- class {
     id = null;
-    ignoreAllClasses = false;
+    ignoreAllClasses = false; // TODO: start using this optimization!!!!
     
     // Entity classnames to ignore during traces. An entry matches every classname that contains it; "*" ignores all classes.
     ignoreClasses = ArrayEx("viewmodel", "weapon_", "beam", "light",
@@ -24,14 +24,11 @@ TracePlus["Settings"] <- class {
     // A custom function to determine if an entity should be ignored during a trace, see SetIgnoreFilter.
     shouldIgnoreEntity = null;
 
-    depthAccuracy = 5;
-    bynaryRefinement = false;
-
     /*
      * Creates a new TraceSettings object with default values or from a table of settings.
      *
      * Keys: ignoreClasses, priorityClasses, ignoredModels (array or ArrayEx), shouldRayHitEntity, shouldIgnoreEntity
-     * (functions), depthAccuracy, bynaryRefinement. A given list replaces the default one; to extend the default
+     * (functions). A given list replaces the default one; to extend the default
      * ignored classes, use AppendIgnoredClass instead.
      *
      * @param {table} settingsTable - A table containing settings to override the defaults. (optional)
@@ -47,9 +44,6 @@ TracePlus["Settings"] <- class {
         
         result.SetCollisionFilter(macros.GetFromTable(settingsTable, "shouldRayHitEntity", null))
         result.SetIgnoreFilter(macros.GetFromTable(settingsTable, "shouldIgnoreEntity", null))
-
-        result.SetDepthAccuracy(macros.GetFromTable(settingsTable, "depthAccuracy", 5))
-        result.SetBynaryRefinement(macros.GetFromTable(settingsTable, "bynaryRefinement", false))
         
         return result
     }
@@ -93,32 +87,6 @@ TracePlus["Settings"] <- class {
         if(typeof ignoredModelsArray != "array" && typeof ignoredModelsArray != "ArrayEx") throw("TracePlus.Settings.SetIgnoredModels: Invalid argument type. Expected an 'array' or 'ArrayEx', but got " + typeof ignoredModelsArray)
 
         this.ignoredModels = ArrayEx.FromArray(ignoredModelsArray)
-        return this
-    }
-
-    /*
-     * Sets the depth accuracy of the legacy bbox analyzer (USE_LEGACY_BBOXCAST_ANALYZER); the default analyzer
-     * does not use it. The legacy analyzer tests points 2 * depthAccuracy units apart along the ray, so lower
-     * values hit thinner objects at a higher cost.
-     *
-     * @param {number} value - The depth accuracy, clamped to 0.3..15. The default is 5.
-     * @returns {TraceSettings} - This settings object, for chaining.
-    */
-    function SetDepthAccuracy(value) {
-        this.depthAccuracy = math.clamp(value, 0.3, 15)
-        return this
-    }
-
-    /*
-     * Enables binary refinement of the bbox hit point. The legacy analyzer uses it to narrow its sampled hit
-     * down to the box entry. The default analyzer computes the entry point analytically; there the refinement
-     * only nudges the point so that it lies inside the hit box.
-     *
-     * @param {boolean} bool - True to enable the refinement. The default is false.
-     * @returns {TraceSettings} - This settings object, for chaining.
-    */
-    function SetBynaryRefinement(bool) {
-        this.bynaryRefinement = bool
         return this
     }
 
@@ -301,8 +269,6 @@ TracePlus["Settings"] <- class {
             .SetIgnoredModels(this.ignoredModels.Clone())
             .SetCollisionFilter(this.shouldRayHitEntity)
             .SetIgnoreFilter(this.shouldIgnoreEntity)
-            .SetBynaryRefinement(this.bynaryRefinement)
-            .SetDepthAccuracy(this.depthAccuracy)
         set.id = this.id
         return set
     }

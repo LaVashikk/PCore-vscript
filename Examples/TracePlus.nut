@@ -13,10 +13,6 @@ DoIncludeScript("PCapture-Lib/SRC/PCapture-Lib", getroottable())
 traceSettings <- TracePlus.Settings.new({
     // Ignore generic trigger entities and the player entity itself.
     ignoreClasses = ["trigger_", "player"],
-    
-    // Enable binary refinement to calculate the exact hit point on the bounding box surface.
-    // This is crucial for accurate surface normal calculation.
-    bynaryRefinement = true 
 });
 
 // A function that simulates a laser scanner.

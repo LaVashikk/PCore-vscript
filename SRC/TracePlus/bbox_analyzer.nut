@@ -16,13 +16,12 @@ class BufferedEntity {
     modelname = null;
     entindex = null;
     
-    // Optimization flags
+    // Set once the broad-phase test (RayAabbIntersectFast) failed for this entity.
     ignoreChecksCalc = false;
-    skipEntity = false;
     
-    // Cache for shouldHitEntity
+    // Result of shouldHitEntityCached, reused only by the trace with the id cachedTraceId.
     cachedShouldHit = null;
-    cachedTraceId = null;  // ID of last trace
+    cachedTraceId = null;
     // cachedSettingsId = null; // todo: maybe for future improvements
 
     constructor(entity) { 
@@ -77,18 +76,18 @@ class BufferedEntity {
      * @param {array|CBaseEntity|null} ignoreEntities - A list of entities or a single entity to ignore during the trace. 
      * @param {TraceSettings} settings - The settings to use for the trace. 
     */ 
-    constructor(startpos, endpos, ignoreEntities, settings) {
+    constructor(startpos, endpos, ignoreEntities, settings, insideTestPos = null) {
         if(typeof settings != "TraceSettings") throw("Invalid trace settings provided. Expected an instance of TracePlus.Settings")
         this.settings = settings
         this.traceId = _traceIdCounter++
         
-        local result = this.Trace(startpos, endpos, ignoreEntities)
+        local result = this.Trace(startpos, endpos, ignoreEntities, insideTestPos)
         this.hitpos = result[0]
         this.hitent = result[1]
         // this.hitnormal = result[2]
     }
 
-    function Trace(startPos, endPos, ignoreEntities) array(hitPos, hitEnt, hitNormal) 
+    function Trace(startPos, endPos, ignoreEntities, insideTestPos) array(hitPos, hitEnt, hitNormal) 
     function shouldHitEntityCached(BEnt, ignoreEntities) bool
     function _isPriorityEntity(classname) bool
     function _isIgnoredEntity(classname) bool
@@ -96,21 +95,28 @@ class BufferedEntity {
 }
 
 /*
- * Performs a precise trace line analysis using analytical ray-AABB intersection. 
+ * Traces from startPos to endPos against world geometry and entity bounding boxes.
  *
- * This method subdivides the trace into segments and uses the slab method to find
- * exact intersection points with entity bounding boxes.
- * 
+ * TraceLine gives the world hit; only the part of the ray before it is searched for entities, in 4 segments
+ * checked in order. For each segment, the entities within the sphere spanning it that pass the ignore lists,
+ * SetTraceIgnore and the settings filters are tested against their world AABB (slab method); the first segment
+ * with a hit returns its nearest entry point. Entity data is cached in EntBufferTable by entindex and rebuilt
+ * when the entity's origin, rounded to 0.001 units, changes. Entities whose AABB contains `insideTestPos` are
+ * skipped for the rest of this trace. If startPos is outside the map (macros.PointInBounds), the result is
+ * a world hit at startPos.
+ *
  * @param {Vector} startPos - The start position of the trace.
  * @param {Vector} endPos - The end position of the trace.
- * @param {array|CBaseEntity|null} ignoreEntities - A list of entities or a single entity to ignore during the trace. 
- * @returns {array} - An array containing [hitPos, hitEntity, hitNormal]. 
+ * @param {array|ArrayEx|List|CBaseEntity|pcapEntity|null} ignoreEntities - A list of entities or a single entity to ignore during the trace.
+ * @param {Vector|null} insideTestPos - Entities whose bbox contains this point are skipped for the whole trace. (optional, defaults to startPos)
+ * @returns {array} - [hitPos, hitEntity, hitNormal]: hitEntity is the hit pcapEntity, or null with hitPos being the TraceLine hit; hitNormal is always null.
 */
-function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities) {
+function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities, insideTestPos = null) {
     // Preventing VScript errors and ensuring correct results even with a broken TraceLine
     if(macros.PointInBounds(startPos) == false) return [startPos, null, null]
+    if(insideTestPos == null) insideTestPos = startPos
 
-    // Get the hit position from the fast trace
+    // World hit from TraceLine; entities are only searched up to it.
     local hitPos = startPos + (endPos - startPos) * TraceLine(startPos, endPos, null)
     local dist = hitPos - startPos
 
@@ -121,12 +127,13 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities) {
     
     // Use array instead of List for better performance [// todo: maybe create with some capacity, or use global one with shadowing indecies? \\]
     local entBuffer = [] 
+    // TODO shit: Entities the trace starts inside of. Per trace on purpose: EntBufferTable is global and outlives it
+    local skipped = {}
     
     // Pre-compute for quick ignore checks
     local ignoreType = ignoreEntities ? typeof ignoreEntities : null
     local singleIgnoreIdx = null
     if(ignoreType && ignoreType != "array" && ignoreType != "ArrayEx" && ignoreType != "List") {
-        // if(ignoreType == "instance" || ignoreType == "pcapEntity") { 
         try {
             singleIgnoreIdx = ignoreEntities.entindex()
         } catch(e) {}
@@ -140,7 +147,6 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities) {
         foreach(mask in ignoreEntities.iter()) ignoreIdxSet[mask.entindex()] <- true
     }
 
-    // dev.debug("========================= TRACE START =========================") // REMOVE IT!!!!!!!
     for(local segment = 0.0; segment < 1.0; segment += JumpPercent) {
         //* "DIRTY" Search - collect candidate entities near the current segment
         local segmentCenter = startPos + dist * (segment + HalfJump)
@@ -157,6 +163,8 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities) {
             if((ent in TracePlusIgnoreEnts) && TracePlusIgnoreEnts[ent] == true) continue
             // 3. Ignore entities set check
             if(idx in ignoreIdxSet) continue
+            // 4. The trace started inside this entity (flagged at segment 0 below)
+            if(idx in skipped) continue
 
             local BEnt = null
             
@@ -199,24 +207,20 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities) {
             if(!this.shouldHitEntityCached(BEnt)) continue
             
 
-            // This handles the specific case where the trace starts *inside* an entity's bounding box.
-            if(segment == 0.0 && macros.PointInBBox(startPos, BEnt.bboxMin, BEnt.bboxMax)) {
-                // dev.debug("{} inside first segment - skipped", BEnt.entity.CBaseEntity)
-                BEnt.skipEntity = true
+            // This handles the specific case where the trace starts *inside* an entity's bounding box
+            if(segment == 0.0 && macros.PointInBBox(insideTestPos, BEnt.bboxMin, BEnt.bboxMax)) {
+                skipped[idx] <- true
                 continue
             }
-            if(BEnt.skipEntity) continue
 
             // Quick broad-phase check
             if(BEnt.ignoreChecksCalc || RayAabbIntersectFast(segmentStart, segmentEnd, BEnt.bboxMin, BEnt.bboxMax)) {
-                // dev.debug("Added {}", BEnt.entity) // DEBUG
                 entBuffer.append(BEnt)
             } else {
                 BEnt.ignoreChecksCalc = true
             }
         }
 
-        // The "dirty search" didn't turn up anything? Check the next segment
         if(entBuffer.len() == 0) continue
 
         //* Analytic narrow-phase: compute exact hit using 'slab method'
@@ -230,11 +234,9 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities) {
             if(!res[0]) continue
 
             local tEnter = res[1]
-            // Clamp to valid range [0, 1]
             if(tEnter < 0.0) tEnter = 0.0
             else if(tEnter > 1.0) tEnter = 1.0
 
-            // Keep track of the closest hit
             if(tEnter < bestT) {
                 bestT = tEnter
                 bestEnt = BEnt
@@ -245,21 +247,13 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities) {
         // If we found a hit in this segment, return immediately
         if(bestEnt != null) {
             local hitPoint = segmentStart + (segmentEnd - segmentStart) * bestT
-
-            // Optional: refine the hit point (only if needed and worth the cost)
-            if(this.settings.bynaryRefinement && bestT > 0.01 && bestT < 0.99) {
-                local refined = BinaryRefinementSearchFast(segmentStart, segmentEnd, bestEnt.bboxMin, bestEnt.bboxMax, bestT)
-                if(refined != null) hitPoint = refined
-            }
-            
             return [hitPoint, bestEnt.entity, bestNormal]
         }
         
-        // Clear buffer for next segment
         entBuffer.clear()
     }
 
-    // No entity was hit; return world hit position
+    // No entity hit: return the TraceLine hit position.
     return [hitPos, null, null]
 }
 
@@ -407,59 +401,12 @@ function RayAabbIntersectFast(start, end, bmin, bmax) {
 }
 
 /*
- * Optimized binary refinement - fewer iterations, smarter window.
- * 
- * @param {Vector} rayStart - Ray segment start.
- * @param {Vector} rayEnd - Ray segment end.
- * @param {Vector} bMin - AABB minimum.
- * @param {Vector} bMax - AABB maximum.
- * @param {float} tEnter - Approximate entry point.
- * @returns {Vector|null} - Refined hit point or null.
-*/
-function BinaryRefinementSearchFast(rayStart, rayEnd, bMin, bMax, tEnter) {
-    // Narrow window around tEnter
-    local dir = rayEnd - rayStart
-    local window = 0.03  // Smaller window = fewer checks
-    local leftT = tEnter - window
-    local rightT = tEnter + window
-    if(leftT < 0.0) leftT = 0.0
-    if(rightT > 1.0) rightT = 1.0
-    
-    local searchStart = rayStart + dir * leftT
-    local searchEnd = rayStart + dir * rightT
-    local searchDir = searchEnd - searchStart
-    
-    local closestHitPoint = null
-    local left = 0.0
-    local right = 1.0
-
-    // Reduced iterations: 6 instead of 10 (good enough precision)
-    for(local i = 0; i < 6; i++) {
-        local middle = (left + right) * 0.5  // Avoid division
-        local currentPoint = searchStart + searchDir * middle
-        
-        // Inline PointInBBox for speed
-        if(currentPoint.x >= bMin.x && currentPoint.x <= bMax.x &&
-           currentPoint.y >= bMin.y && currentPoint.y <= bMax.y &&
-           currentPoint.z >= bMin.z && currentPoint.z <= bMax.z) {
-            closestHitPoint = currentPoint
-            right = middle
-        } else {
-            left = middle
-        }
-    }
-    
-    return closestHitPoint
-}
-
-/*
- * Cached version of shouldHitEntity to avoid redundant checks.
- * 
- * @param {BufferedEntity} BEnt - Buffered entity with cache.
- * @returns {boolean} - True if should check for hit.
+ * Checks whether the trace can hit an entity: the ignore filter (true skips it), then the collision filter
+ * (true accepts it), then the ignored classes (unless it is also a priority class) and the ignored models.
+ * The filter functions receive the raw CBaseEntity. The result is cached in BEnt for the current trace.
 */
 function BboxTraceAnalyzer::shouldHitEntityCached(BEnt) {
-    // Try use cached result
+    // Result cached earlier in this trace
     if(BEnt.cachedTraceId == this.traceId && BEnt.cachedShouldHit != null) {
         return BEnt.cachedShouldHit
     }
@@ -468,40 +415,35 @@ function BboxTraceAnalyzer::shouldHitEntityCached(BEnt) {
     
     // Settings filters
     if(settings.ApplyIgnoreFilter(ent)) {
-        // dev.debug("- {} IgnoreFilter", ent)
         BEnt.cachedShouldHit = false
         return false
     }
     
     if(settings.ApplyCollisionFilter(ent)) {
-        // dev.debug("- {} CollisionFilter", ent)
         BEnt.cachedShouldHit = true
         return true
     }
 
     // Use cached classname and modelname (no C++ calls!)
     if(_isIgnoredEntity(BEnt.classname) && !_isPriorityEntity(BEnt.classname)) {
-        // dev.debug("- {} _isIgnoredEntity", ent)
         BEnt.cachedShouldHit = false
         return false
     }
     
     if(_isIgnoredModels(BEnt.modelname)) {
-        // dev.debug("- {} _isIgnoredModels", ent)
         BEnt.cachedShouldHit = false
         return false
     }
 
-    // dev.debug("- {} none of all, then should!", ent)
     BEnt.cachedShouldHit = true
     return true
 }
 
 /*
- * Check if entity class is in the priority list.
+ * Checks whether a classname contains one of the priority classes.
  *
  * @param {string} entityClass - Entity class name to check.
- * @returns {boolean} True if entity class is prioritized.
+ * @returns {boolean} - True if entity class is prioritized.
 */
 function BboxTraceAnalyzer::_isPriorityEntity(entityClass) {
     if(settings.GetPriorityClasses().len() == 0) return false
@@ -510,11 +452,11 @@ function BboxTraceAnalyzer::_isPriorityEntity(entityClass) {
     }) != null
 }
 
-/* 
- * Check if entity class should be ignored.
+/*
+ * Checks whether a classname contains one of the ignored classes, or the ignored classes contain "*".
  *
  * @param {string} entityClass - Entity class name to check.
- * @returns {boolean} True if entity class should be ignored.
+ * @returns {boolean} - True if entity class should be ignored.
 */
 function BboxTraceAnalyzer::_isIgnoredEntity(entityClass) {
     if(settings.GetIgnoreClasses().len() == 0) return false
@@ -524,11 +466,11 @@ function BboxTraceAnalyzer::_isIgnoredEntity(entityClass) {
     }) != null
 }
 
-/* 
- * Check if entity model is in the ignored models list.
+/*
+ * Checks whether a model name contains one of the ignored models. An empty model name is never ignored.
  *
  * @param {string} entityModel - The model name of the entity.
- * @returns {boolean} True if the model should be ignored.
+ * @returns {boolean} - True if the model should be ignored.
 */
 function BboxTraceAnalyzer::_isIgnoredModels(entityModel) {
     if(settings.GetIgnoredModels().len() == 0 || entityModel == "") return false

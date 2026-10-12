@@ -20,8 +20,6 @@
     Bbox = null,
 }
 
-::USE_LEGACY_BBOXCAST_ANALYZER <- false
-
 /*
  * Drops the cached bbox data of an entity, so the next bbox trace rebuilds it.
  * The cache only notices origin changes; use this after rotating or resizing an entity in place.
@@ -44,5 +42,4 @@ IncludeScript("PCapture-LIB/SRC/TracePlus/bboxcast")
 IncludeScript("PCapture-LIB/SRC/TracePlus/portal_casting")
 
 IncludeScript("PCapture-LIB/SRC/TracePlus/bbox_analyzer")
-IncludeScript("PCapture-LIB/SRC/TracePlus/legacy_bbox_analyzer")
 IncludeScript("PCapture-LIB/SRC/TracePlus/calculate_normal")

@@ -83,18 +83,6 @@ tracePlusTests <- {
         return assert(settings.GetIgnoredModels() == ignoredModels)
     },
 
-    function traceSettingsSetDepthAccuracyTest() {
-        local settings = TracePlus.Settings.new()
-        settings.SetDepthAccuracy(10)
-        return assert(settings.depthAccuracy == 10)
-    },
-
-    function traceSettingsSetBinaryRefinementTest() {
-        local settings = TracePlus.Settings.new()
-        settings.SetBynaryRefinement(true)
-        return assert(settings.bynaryRefinement == true)
-    },
-
     function traceSettingsAppendIgnoredClassTest() {
         local settings = TracePlus.Settings.new()
         settings.AppendIgnoredClass("prop_physics")
