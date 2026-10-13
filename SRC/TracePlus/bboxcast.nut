@@ -8,9 +8,11 @@
  * @param {TraceSettings} settings - The settings to use for the trace. (optional, defaults to TracePlus.defaultSettings) 
  * @returns {BboxTraceResult} - The trace result object. 
 */
-TracePlus["Bbox"] <- function(startPos, endPos, ignoreEntities = null, settings = TracePlus.defaultSettings, insideTestPos = null) { // todo: fucking insideTestPos here! its garbage
+TracePlus["Bbox"] <- function(startPos, endPos, ignoreEntities = null, settings = null, insideTestPos = null) { // todo: fucking insideTestPos here! its garbage
     if(typeof startPos != "Vector") throw("TracePlus.Bbox: 'startPos' argument must be a Vector, but got " + typeof startPos);
     if(typeof endPos != "Vector") throw("TracePlus.Bbox: 'endPos' argument must be a Vector, but got " + typeof endPos);
+    // Resolved here and not as the default value: that one would be bound at load and miss a reassigned defaultSettings
+    if(settings == null) settings = TracePlus.defaultSettings
     if(typeof settings != "TraceSettings")  throw("TracePlus.Bbox: 'settings' argument must be a TraceSettings, but got " + typeof settings);
     if(ignoreEntities != null) {
         local ignoreType = typeof ignoreEntities;
@@ -50,7 +52,7 @@ TracePlus["Bbox"] <- function(startPos, endPos, ignoreEntities = null, settings 
  * @param {TraceSettings} settings - The settings to use for the trace. (optional, defaults to TracePlus.defaultSettings)
  * @returns {BboxTraceResult} - The trace result object.
 */
-TracePlus["FromEyes"]["Bbox"] <- function(distance, player, ignoreEntities = null, settings = TracePlus.defaultSettings) {
+TracePlus["FromEyes"]["Bbox"] <- function(distance, player, ignoreEntities = null, settings = null) {
     local startPos = player.EyePosition()
     local endPos = macros.GetEyeEndpos(player, distance)
 

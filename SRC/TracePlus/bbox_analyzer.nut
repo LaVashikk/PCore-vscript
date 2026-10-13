@@ -154,9 +154,6 @@ class BufferedEntity {
 
     function Trace(startPos, endPos, ignoreEntities, insideTestPos) array(hitPos, hitEnt, hitNormal) 
     function shouldHitEntityCached(BEnt, ignoreEntities) bool
-    function _isPriorityEntity(classname) bool
-    function _isIgnoredEntity(classname) bool
-    function _isIgnoredModels(modelname) bool
 }
 
 /*
@@ -492,57 +489,12 @@ function BboxTraceAnalyzer::shouldHitEntityCached(BEnt) {
         return true
     }
 
-    // Use cached classname and modelname (no C++ calls!)
-    if(_isIgnoredEntity(BEnt.classname) && !_isPriorityEntity(BEnt.classname)) {
-        BEnt.cachedShouldHit = false
-        return false
-    }
-    
-    if(_isIgnoredModels(BEnt.modelname)) {
+    // Use cached classname and modelname (no C++ calls!), the settings cache the verdicts per name
+    if(settings._isClassIgnored(BEnt.classname) || settings._isModelIgnored(BEnt.modelname)) {
         BEnt.cachedShouldHit = false
         return false
     }
 
     BEnt.cachedShouldHit = true
     return true
-}
-
-/*
- * Checks whether a classname contains one of the priority classes.
- *
- * @param {string} entityClass - Entity class name to check.
- * @returns {boolean} - True if entity class is prioritized.
-*/
-function BboxTraceAnalyzer::_isPriorityEntity(entityClass) {
-    if(settings.GetPriorityClasses().len() == 0) return false
-    return settings.GetPriorityClasses().search(function(v) : (entityClass) { 
-        return entityClass.find(v) >= 0 
-    }) != null
-}
-
-/*
- * Checks whether a classname contains one of the ignored classes, or the ignored classes contain "*".
- *
- * @param {string} entityClass - Entity class name to check.
- * @returns {boolean} - True if entity class should be ignored.
-*/
-function BboxTraceAnalyzer::_isIgnoredEntity(entityClass) {
-    if(settings.GetIgnoreClasses().len() == 0) return false
-    if(settings.GetIgnoreClasses().contains("*")) return true
-    return settings.GetIgnoreClasses().search(function(v) : (entityClass) { 
-        return entityClass.find(v) >= 0 
-    }) != null
-}
-
-/*
- * Checks whether a model name contains one of the ignored models. An empty model name is never ignored.
- *
- * @param {string} entityModel - The model name of the entity.
- * @returns {boolean} - True if the model should be ignored.
-*/
-function BboxTraceAnalyzer::_isIgnoredModels(entityModel) {
-    if(settings.GetIgnoredModels().len() == 0 || entityModel == "") return false
-    return settings.GetIgnoredModels().search(function(v) : (entityModel) { 
-        return entityModel.find(v) >= 0 
-    }) != null
 }

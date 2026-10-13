@@ -3,16 +3,16 @@
  * functions and analyzer options. Create instances with TracePlus.Settings.new().
 */
 TracePlus["Settings"] <- class {
-    id = null;
-    ignoreAllClasses = false; // TODO: start using this optimization!!!!
+    id = null; // todo: dont used!
+    ignoreAllClasses = false; 
     
     // Entity classnames to ignore during traces. An entry matches every classname that contains it; "*" ignores all classes.
-    // todo: remove edict-less ents from here!
     ignoreClasses = ArrayEx("viewmodel", "weapon_", "beam", "light",
         "trigger_", "phys_", "env_", "point_", "info_", "vgui_", "logic_",
         "clone", "prop_portal", "portal_base2D", "func_clip", "func_instance",
-        "func_portal_detector", 
-        "worldspawn", "soundent", "player_manager", "bodyque", "ai_network"
+        "func_portal_detector", "func_noportal_volume", "func_portal_bumper",
+        "func_areaportalwindow", "path_track", "npc_bullseye", "move_rope", "keyframe_rope",
+        "worldspawn", "soundent", "player_manager", "bodyque", "ai_network", "generic_actor"
     );
     // Entity classnames that are hit even if they match ignoreClasses; matched the same way.
     priorityClasses = ArrayEx();
@@ -24,6 +24,22 @@ TracePlus["Settings"] <- class {
     shouldRayHitEntity = null;
     // A custom function to determine if an entity should be ignored during a trace, see SetIgnoreFilter.
     shouldIgnoreEntity = null;
+
+    // classname / model name -> ignored, filled by the analyzer. The lists only change through Set*/Append*, which drop these
+    classCache = null;
+    modelCache = null;
+
+    /*
+     * Creates settings with the default lists. Use TracePlus.Settings.new() instead.
+    */
+    constructor() {
+        // Class members are shared by every instance, so each one gets its own lists
+        this.ignoreClasses = this.ignoreClasses.Clone()
+        this.priorityClasses = this.priorityClasses.Clone()
+        this.ignoredModels = this.ignoredModels.Clone()
+        this.classCache = {}
+        this.modelCache = {}
+    }
 
     /*
      * Creates a new TraceSettings object with default values or from a table of settings.
@@ -59,9 +75,11 @@ TracePlus["Settings"] <- class {
     function SetIgnoredClasses(ignoreClassesArray) {
         if(typeof ignoreClassesArray != "array" && typeof ignoreClassesArray != "ArrayEx") throw("TracePlus.Settings.SetIgnoredClasses: Invalid argument type. Expected an 'array' or 'ArrayEx', but got " + typeof ignoreClassesArray)
 
-        this.ignoreClasses = ArrayEx.FromArray(ignoreClassesArray)
-        this.ignoreAllClasses = this.ignoreClasses && this.ignoreClasses.contains("*")
-        
+        // A copy, so changing the caller's array later can't get past the caches
+        this.ignoreClasses = ArrayEx.FromArray(ignoreClassesArray).Clone()
+        this.ignoreAllClasses = this.ignoreClasses.contains("*")
+        this.classCache = {}
+
         return this
     }
 
@@ -74,7 +92,8 @@ TracePlus["Settings"] <- class {
     function SetPriorityClasses(priorityClassesArray) {
         if(typeof priorityClassesArray != "array" && typeof priorityClassesArray != "ArrayEx") throw("TracePlus.Settings.SetPriorityClasses: Invalid argument type. Expected an 'array' or 'ArrayEx', but got " + typeof priorityClassesArray)
 
-        this.priorityClasses = ArrayEx.FromArray(priorityClassesArray)
+        this.priorityClasses = ArrayEx.FromArray(priorityClassesArray).Clone()
+        this.classCache = {}
         return this
     }
 
@@ -87,12 +106,13 @@ TracePlus["Settings"] <- class {
     function SetIgnoredModels(ignoredModelsArray) {
         if(typeof ignoredModelsArray != "array" && typeof ignoredModelsArray != "ArrayEx") throw("TracePlus.Settings.SetIgnoredModels: Invalid argument type. Expected an 'array' or 'ArrayEx', but got " + typeof ignoredModelsArray)
 
-        this.ignoredModels = ArrayEx.FromArray(ignoredModelsArray)
+        this.ignoredModels = ArrayEx.FromArray(ignoredModelsArray).Clone()
+        this.modelCache = {}
         return this
     }
 
     /*
-     * Appends an entity classname to the list of ignored classes. A list still shared with the defaults is copied first.
+     * Appends an entity classname to the list of ignored classes.
      *
      * @param {string} className - The classname to append.
      * @returns {TraceSettings} - This settings object, for chaining.
@@ -100,18 +120,15 @@ TracePlus["Settings"] <- class {
     function AppendIgnoredClass(className) {
         if(typeof className != "string") throw("TracePlus.Settings.AppendIgnoredClass: Invalid argument type. Expected a 'string', but got " + typeof className)
 
-        // CoW Mechanism
-        if(this.ignoreClasses == TracePlus.Settings.ignoreClasses)
-            this.ignoreClasses = this.ignoreClasses.Clone()
-        
         this.ignoreClasses.append(className)
-        this.ignoreAllClasses = this.ignoreClasses && this.ignoreClasses.contains("*")
-        
+        if(className == "*") this.ignoreAllClasses = true // todo: this can be invalidated if something modify ignoreClasses not from methods
+        this.classCache = {}
+
         return this
     }
 
     /*
-     * Appends an entity classname to the list of priority classes. A list still shared with the defaults is copied first.
+     * Appends an entity classname to the list of priority classes.
      *
      * @param {string} className - The classname to append.
      * @returns {TraceSettings} - This settings object, for chaining.
@@ -119,16 +136,13 @@ TracePlus["Settings"] <- class {
     function AppendPriorityClasses(className) {
         if(typeof className != "string") throw("TracePlus.Settings.AppendPriorityClasses: Invalid argument type. Expected a 'string', but got " + typeof className)
 
-        // CoW Mechanism
-        if(this.priorityClasses == TracePlus.Settings.priorityClasses)
-            this.priorityClasses = this.priorityClasses.Clone()
-        
         this.priorityClasses.append(className)
+        this.classCache = {}
         return this
     }
 
     /*
-     * Appends an entity model name to the list of ignored models. A list still shared with the defaults is copied first.
+     * Appends an entity model name to the list of ignored models.
      *
      * @param {string} modelName - The model name to append.
      * @returns {TraceSettings} - This settings object, for chaining.
@@ -136,39 +150,68 @@ TracePlus["Settings"] <- class {
     function AppendIgnoredModel(modelName) {
         if(typeof modelName != "string") throw("TracePlus.Settings.AppendIgnoredModel: Invalid argument type. Expected a 'string', but got " + typeof modelName)
 
-        // CoW Mechanism
-        if(this.ignoredModels == TracePlus.Settings.ignoredModels)
-            this.ignoredModels = this.ignoredModels.Clone()
-
         this.ignoredModels.append(modelName)
+        this.modelCache = {}
         return this
     }
 
-    /* 
-     * Gets the list of entity classnames to ignore during traces. 
+    /*
+     * Gets a copy of the list of entity classnames to ignore during traces. Change the list with Set/Append.
      *
-     * @returns {ArrayEx} - An ArrayEx containing the ignored classnames. 
+     * @returns {ArrayEx} - A copy of the ignored classnames.
     */
     function GetIgnoreClasses() {
-        return this.ignoreClasses
+        return this.ignoreClasses.Clone()
     }
 
     /*
-     * Gets the list of entity classnames to prioritize during traces. 
+     * Gets a copy of the list of entity classnames to prioritize during traces. Change the list with Set/Append.
      *
-     * @returns {ArrayEx} - An ArrayEx containing the priority classnames. 
+     * @returns {ArrayEx} - A copy of the priority classnames.
     */
     function GetPriorityClasses() {
-        return this.priorityClasses
+        return this.priorityClasses.Clone()
     }
 
     /*
-     * Gets the list of entity model names to ignore during traces. 
+     * Gets a copy of the list of entity model names to ignore during traces. Change the list with Set/Append.
      *
-     * @returns {ArrayEx} - An ArrayEx containing the ignored model names. 
+     * @returns {ArrayEx} - A copy of the ignored model names.
     */
     function GetIgnoredModels() {
-        return this.ignoredModels
+        return this.ignoredModels.Clone()
+    }
+
+    /*
+     * Checks a classname against the class lists: it is ignored if it matches ignoreClasses (or "*" is there)
+     * and no priority class. Cached per classname until the class lists change.
+    */
+    function _isClassIgnored(classname) {
+        if(classname in this.classCache) return this.classCache[classname]
+
+        local ignored = (this.ignoreAllClasses || _matchesAny(this.ignoreClasses, classname)) && !_matchesAny(this.priorityClasses, classname)
+        this.classCache[classname] <- ignored
+        return ignored
+    }
+
+    /*
+     * Checks a model name against ignoredModels. An empty model name is never ignored.
+     * Cached per model name until the model list changes.
+    */
+    function _isModelIgnored(modelname) {
+        if(modelname == "") return false
+        if(modelname in this.modelCache) return this.modelCache[modelname]
+
+        local ignored = _matchesAny(this.ignoredModels, modelname)
+        this.modelCache[modelname] <- ignored
+        return ignored
+    }
+
+    // True if `name` contains one of the masks
+    function _matchesAny(list, name) {
+        foreach(mask in list.arr)
+            if(name.find(mask) != null) return true
+        return false
     }
 
     /*
@@ -264,16 +307,17 @@ TracePlus["Settings"] <- class {
      * @returns {TraceSettings} - The copy.
     */
     function Clone() {
-        local set = TracePlus.Settings()
-            .SetIgnoredClasses(this.ignoreClasses.Clone())
-            .SetPriorityClasses(this.priorityClasses.Clone())
-            .SetIgnoredModels(this.ignoredModels.Clone())
-            .SetCollisionFilter(this.shouldRayHitEntity)
-            .SetIgnoreFilter(this.shouldIgnoreEntity)
-        set.id = this.id
-        return set
+        return clone this
+    }
+
+    // Squirrel calls it on the fresh shallow copy, which still shares the lists and caches with `original`
+    function _cloned(original) {
+        this.ignoreClasses = original.ignoreClasses.Clone()
+        this.priorityClasses = original.priorityClasses.Clone()
+        this.ignoredModels = original.ignoredModels.Clone()
+        this.classCache = {}
+        this.modelCache = {}
     }
 
     function _typeof() return "TraceSettings"
-    function _cloned() return this.Clone()
 }

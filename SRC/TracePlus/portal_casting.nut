@@ -100,7 +100,7 @@ TracePlus["PortalCheap"] <- function(startPos, endPos) {
  * @param {TraceSettings} settings - The settings to use for the trace. (optional, defaults to TracePlus.defaultSettings)
  * @returns {BboxTraceResult} - The last cast; the previous ones are chained through GetPortalEntryInfo.
 */
-TracePlus["PortalBbox"] <- function(startPos, endPos, ignoreEntities = null, settings = TracePlus.defaultSettings) {
+TracePlus["PortalBbox"] <- function(startPos, endPos, ignoreEntities = null, settings = null) {
     local length = (endPos - startPos).Length()
     local previousTraceData
     local insideTestPos = null
@@ -120,7 +120,7 @@ TracePlus["PortalBbox"] <- function(startPos, endPos, ignoreEntities = null, set
 
         local partnerPortal = portal.GetPartnerInstance()
         if (partnerPortal == null) {
-            dev.warning("Portal {} doesn't have a partner ;(", portal)
+            // dev.warning("Portal {} doesn't have a partner ;(", portal)
             return traceData
         }
 
@@ -155,7 +155,7 @@ TracePlus["PortalBbox"] <- function(startPos, endPos, ignoreEntities = null, set
  * @param {TraceSettings} settings - The settings to use for the trace. (optional, defaults to TracePlus.defaultSettings)
  * @returns {BboxTraceResult} - The last cast; the previous ones are chained through GetPortalEntryInfo.
 */
- TracePlus["FromEyes"]["PortalBbox"] <- function(distance, player, ignoreEntities = null, settings = TracePlus.defaultSettings) {
+ TracePlus["FromEyes"]["PortalBbox"] <- function(distance, player, ignoreEntities = null, settings = null) {
     local startPos = player.EyePosition()
     local endPos = macros.GetEyeEndpos(player, distance)
     ignoreEntities = TracePlus.Settings.UpdateIgnoreEntities(ignoreEntities, player)

@@ -57,9 +57,9 @@ This class stores various settings that control the behavior of traces, such as 
 *   `AppendIgnoredModel(modelName)`: Appends an entity model name to the list of ignored models. **(Builder)**
 *   `SetCollisionFilter(filterFunction)`: Sets a custom function to determine if a ray should hit an entity (collision filter). **(Builder)**
 *   `SetIgnoreFilter(filterFunction)`: Sets a custom function to determine if an entity should be ignored during a trace (ignore filter). **(Builder)**
-*   `GetIgnoreClasses()`: Returns the list of entity classnames to ignore during traces.
-*   `GetPriorityClasses()`: Returns the list of entity classnames to prioritize during traces.
-*   `GetIgnoredModels()`: Returns the list of entity model names to ignore during traces.
+*   `GetIgnoreClasses()`: Returns a copy of the list of entity classnames to ignore during traces. Change the list with the `Set`/`Append` methods.
+*   `GetPriorityClasses()`: Returns a copy of the list of entity classnames to prioritize during traces. Change the list with the `Set`/`Append` methods.
+*   `GetIgnoredModels()`: Returns a copy of the list of entity model names to ignore during traces. Change the list with the `Set`/`Append` methods.
 *   `GetCollisionFilter()`: Returns the custom collision filter function.
 *   `GetIgnoreFilter()`: Returns the custom ignore filter function.
 *   `ApplyCollisionFilter(entity)`: Applies the custom collision filter function to an entity.
@@ -409,8 +409,6 @@ This class provides methods for tracing lines with more precision and considerin
 **Methods:**
 
 * `Trace(startPos, endPos, ignoreEntities)`: Performs a precise trace line analysis.
-* `_isPriorityEntity(entityClass)`: Checks if an entity is a priority entity based on the trace settings.
-* `_isIgnoredEntity(entityClass)`: Checks if an entity should be ignored based on the trace settings.
 * `shouldHitEntityCached(BEnt)`: Checks if the trace should consider a hit with the given buffered entity, utilizing caching and trace settings.
 
 **BBox Casting Algorithm:**
