@@ -23,6 +23,9 @@ class BufferedEntity {
     Lx = 0.0; Ly = 0.0; Lz = 0.0;
     Ux = 0.0; Uy = 0.0; Uz = 0.0;
 
+    // Zero-size box (ambient_generic, game_text...): only a ray going exactly through the point could hit it
+    isPoint = false;
+
     // Cached expensive C++ calls
     classname = null;
     modelname = null;
@@ -54,6 +57,7 @@ class BufferedEntity {
 
         local mins = entity.GetBoundingMins()
         local maxs = entity.GetBoundingMaxs()
+        this.isPoint = mins.x == maxs.x && mins.y == maxs.y && mins.z == maxs.z
 
         // Player bounds stay world-aligned whatever the angles, the engine never rotates them
         if((this.roundedAnglesX == 0 && this.roundedAnglesY == 0 && this.roundedAnglesZ == 0) || this.classname == "player") {
@@ -138,21 +142,21 @@ class BufferedEntity {
      *
      * @param {Vector} startpos - The start position of the trace.
      * @param {Vector} endpos - The end position of the trace.
-     * @param {array|CBaseEntity|null} ignoreEntities - A list of entities or a single entity to ignore during the trace. 
-     * @param {TraceSettings} settings - The settings to use for the trace. 
-    */ 
-    constructor(startpos, endpos, ignoreEntities, settings, insideTestPos = null) {
+     * @param {table} ignoreSet - The entindex of every entity to ignore, as keys (see TracePlus._IgnoreSet).
+     * @param {TraceSettings} settings - The settings to use for the trace.
+    */
+    constructor(startpos, endpos, ignoreSet, settings, insideTestPos = null) {
         if(typeof settings != "TraceSettings") throw("Invalid trace settings provided. Expected an instance of TracePlus.Settings")
         this.settings = settings
         this.traceId = _traceIdCounter++
-        
-        local result = this.Trace(startpos, endpos, ignoreEntities, insideTestPos)
+
+        local result = this.Trace(startpos, endpos, ignoreSet, insideTestPos)
         this.hitpos = result[0]
         this.hitent = result[1]
         this.hitnormal = result[2]
     }
 
-    function Trace(startPos, endPos, ignoreEntities, insideTestPos) array(hitPos, hitEnt, hitNormal) 
+    function Trace(startPos, endPos, ignoreSet, insideTestPos) array(hitPos, hitEnt, hitNormal)
     function shouldHitEntityCached(BEnt, ignoreEntities) bool
 }
 
@@ -170,11 +174,11 @@ class BufferedEntity {
  *
  * @param {Vector} startPos - The start position of the trace.
  * @param {Vector} endPos - The end position of the trace.
- * @param {array|ArrayEx|List|CBaseEntity|pcapEntity|null} ignoreEntities - A list of entities or a single entity to ignore during the trace.
+ * @param {table} ignoreSet - The entindex of every entity to ignore, as keys (see TracePlus._IgnoreSet).
  * @param {Vector|null} insideTestPos - Entities whose bbox contains this point are skipped for the whole trace. (optional, defaults to startPos)
  * @returns {array} - [hitPos, hitEntity, hitNormal]: hitEntity is the hit pcapEntity, or null with hitPos being the TraceLine hit; hitNormal is the entered face normal, null for world hits and hits at a segment start.
 */
-function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities, insideTestPos = null) {
+function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreSet, insideTestPos = null) {
     // Preventing VScript errors and ensuring correct results even with a broken TraceLine
     if(macros.PointInBounds(startPos) == false) return [startPos, null, null]
     if(insideTestPos == null) insideTestPos = startPos
@@ -192,23 +196,6 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities, insideTestPo
     local entBuffer = [] 
     // TODO shit: Entities the trace starts inside of. Per trace on purpose: EntBufferTable is global and outlives it
     local skipped = {}
-    
-    // Pre-compute for quick ignore checks
-    local ignoreType = ignoreEntities ? typeof ignoreEntities : null
-    local singleIgnoreIdx = null
-    if(ignoreType && ignoreType != "array" && ignoreType != "ArrayEx" && ignoreType != "List") {
-        try {
-            singleIgnoreIdx = ignoreEntities.entindex()
-        } catch(e) {}
-    }
-
-    // Pre-compute ignoreIdxSet for O(1) lookup
-    local ignoreIdxSet = {}
-    if(ignoreType == "array" || ignoreType == "ArrayEx") {
-        foreach(mask in ignoreEntities) ignoreIdxSet[mask.entindex()] <- true
-    } else if(ignoreType == "List") {
-        foreach(mask in ignoreEntities.iter()) ignoreIdxSet[mask.entindex()] <- true
-    }
 
     for(local segment = 0.0; segment < 1.0; segment += JumpPercent) {
         //* "DIRTY" Search - collect candidate entities near the current segment
@@ -220,14 +207,12 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities, insideTestPo
         for(local ent; ent = Entities.FindInSphere(ent, segmentCenter, searchRadius);) {
             local idx = ent.entindex()
             
-            // == Avoid expensive shouldHitEntity == 
-            // 1. Quick single-entity ignore check
-            if(singleIgnoreIdx != null && idx == singleIgnoreIdx) continue
+            // == Avoid expensive shouldHitEntity ==
+            // 1. Ignore entities set check
+            if(idx in ignoreSet) continue
             // 2.Entity should 'Ignore Trace' check // todo change comment
             if((ent in TracePlusIgnoreEnts) && TracePlusIgnoreEnts[ent] == true) continue
-            // 3. Ignore entities set check
-            if(idx in ignoreIdxSet) continue
-            // 4. The trace started inside this entity (flagged at segment 0 below)
+            // 3. The trace started inside this entity (flagged at segment 0 below)
             if(idx in skipped) continue
 
             local BEnt = null
@@ -266,7 +251,9 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities, insideTestPo
                 BEnt.cachedTraceId = this.traceId
                 EntBufferTable[idx] <- BEnt
             }
-            
+
+            if(BEnt.isPoint) continue
+
             // Check shouldHitEntity, now with caching :}
             if(!this.shouldHitEntityCached(BEnt)) continue
             
