@@ -168,6 +168,9 @@ TracePlus["_PortalBboxCast"] <- function(startPos, endPos, ignoreEntities, ignor
             if(normal.Dot(portal.GetForwardVector()) < 0.8)
                 return traceData
         }
+        // The door bbox is ours and exact, but it is hit from both sides: from behind it is just a door frame
+        else if(traceData.GetDir().Dot(portal.GetForwardVector()) >= 0)
+            return traceData
 
         ignoreSet[partnerPortal.entindex()] <- true
 
