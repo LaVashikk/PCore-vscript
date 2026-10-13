@@ -63,6 +63,10 @@ TracePlus["PortalCheap"] <- function(startPos, endPos) {
             return traceData
         }
 
+        // TraceLine flies through linked_portal_door, the door is found next to the wall hit: a closed one must not let it through
+        if(portal.GetUserData("TracePlusIgnore") || partnerPortal.GetUserData("TracePlusIgnore"))
+            return traceData
+
         // Calculate new start and end positions for the trace after passing through the portal.
         local ray = _ApplyPortal(startPos, hitPos, length, portal, partnerPortal);
         // Adjust the start position slightly to prevent the trace from getting stuck.
