@@ -33,7 +33,7 @@
     detector.ConnectOutputEx("OnEndTouchPortal", function() {
         local portal = entLib.FromEntity(activator)
         portal.SetHealth(9999)
-        portal.SetUserData("PortalLinked", false)
+        _SetPortalLinked(portal, false)
     })
 
     // Enabling it already reports every portal of the group with its links, no need to rescan on top of that
@@ -43,7 +43,7 @@
 /*
  * Initializes linked portal doors for portal tracing.
  * This function is not part of the public API.
- * 
+ *
  * This function is called automatically at the initialization.
 */
 ::SetupLinkedPortals <- function() {
@@ -51,23 +51,39 @@
         local p = entLib.FromEntity(self)
         p.SetTraceIgnore(state)
         local p2 = p.GetPartnerInstance()
-        if(p2) p2.SetTraceIgnore(state) 
+        if(p2) p2.SetTraceIgnore(state)
         return true
     }
+    // The door itself has no size, the engine gives it to a portal_base2D the door owns (built from its width/height)
+    local doorPortals = {}
+    for(local p; p = Entities.FindByClassname(p, "portal_base2D");) {
+        local owner = p.GetOwner()
+        if(owner) doorPortals[owner] <- p
+    }
+
     for(local portal; portal = entLib.FindByClassname("linked_portal_door", portal);) {
         if(portal.GetUserData("processed"))
             continue
-    
+
         portal.SetInputHook("Open", function():(portalStateHandler) {return portalStateHandler(false)})
         portal.SetInputHook("Close", function():(portalStateHandler) {return portalStateHandler(true)})
 
-        local partner = portal.GetPartnerInstance()
-    
-        if(portal.GetModelName() == "") 
-            continue
-        
-        local wpInfo = split(portal.GetModelName(), " ")
-        local wpBBox = math.vector.abs(Vector(8, wpInfo[0].tointeger(), wpInfo[1].tointeger()))
+        // Half sizes: the mapper's `model` "halfWidth halfHeight" wins, the door's own portal_base2D otherwise
+        local halfWidth, halfHeight
+        if(portal.GetModelName() != "") {
+            local wpInfo = split(portal.GetModelName(), " ")
+            halfWidth = wpInfo[0].tointeger()
+            halfHeight = wpInfo[1].tointeger()
+        }
+        else if(portal.CBaseEntity in doorPortals) {
+            local maxs = doorPortals[portal.CBaseEntity].GetBoundingMaxs()
+            dev.error("CMP: from model [{} | {}], calc [{} {}]", halfWidth, halfHeight, maxs.y, maxs.z)
+            halfWidth = maxs.y
+            halfHeight = maxs.z
+        }
+        else continue
+
+        local wpBBox = Vector(8, fabs(halfWidth), fabs(halfHeight))
         portal.SetBBox(wpBBox * -1, wpBBox)
         portal.SetUserData("processed", true)
     }
@@ -98,7 +114,7 @@
 /*
  * Creates an enabled `func_portal_detector` with one extra key-value pair. Its bounds cover the whole map,
  * and TracePlus ignores it.
- * 
+ *
  * This function is not part of the public API.
 */
 ::_CreatePortalDetector <- function(extraKey, extraValue) {
@@ -107,7 +123,7 @@
     detector.SetBBox(Vector(32000, 32000, 32000) * -1, Vector(32000, 32000, 32000))
     detector.SetTraceIgnore(true)
     EntFireByHandle(detector, "Enable")
-    
+
     return detector
 }
 
@@ -130,12 +146,18 @@
     })
 }
 
+// The pair detectors own TracePlusIgnore of prop_portals: only a linked portal can be traced through
+::_SetPortalLinked <- function(portal, linked) {
+    portal.SetUserData("PortalLinked", linked)
+    portal.SetTraceIgnore(!linked)
+}
+
 /*
  * OnStartTouchLinkedPortal of a pair detector.
  * This function is not part of the public API.
 */
 ::_OnPortalLinked <- function(portal, id) {
-    entLib.FromEntity(portal).SetUserData("PortalLinked", true)
+    _SetPortalLinked(entLib.FromEntity(portal), true)
     // The engine announces only the portal that just got linked, never its partner: replay the group to hear both
     _RescanPortalGroup(id)
 }
