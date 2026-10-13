@@ -18,6 +18,9 @@ TracePlus["Settings"] <- class {
     priorityClasses = ArrayEx();
     // Entity model names to ignore during traces. An entry matches every model name that contains it.
     ignoredModels = ArrayEx();
+    // Undocumented, you normally never need to change it! A trace starting inside one of these is hit right at the start
+    // instead of skipping it: a cube stuck in a portal contains the start of the cast that comes out of that portal
+    hitInsideClasses = ArrayEx("prop_weighted_cube", "prop_monster_box", "npc_portal_turret_floor", "prop_physics");
 
 
     // A custom function to determine if a ray should hit an entity, see SetCollisionFilter.
@@ -205,6 +208,11 @@ TracePlus["Settings"] <- class {
         local ignored = _matchesAny(this.ignoredModels, modelname)
         this.modelCache[modelname] <- ignored
         return ignored
+    }
+
+    // See hitInsideClasses. Not cached: it only runs for entities the trace starts inside of
+    function _isHitInside(classname) {
+        return _matchesAny(this.hitInsideClasses, classname)
     }
 
     // True if `name` contains one of the masks

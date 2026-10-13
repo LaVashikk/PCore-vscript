@@ -12,7 +12,7 @@ TracePlus["Bbox"] <- function(startPos, endPos, ignoreEntities = null, settings 
     if(typeof startPos != "Vector") throw("TracePlus.Bbox: 'startPos' argument must be a Vector, but got " + typeof startPos);
     if(typeof endPos != "Vector") throw("TracePlus.Bbox: 'endPos' argument must be a Vector, but got " + typeof endPos);
 
-    return TracePlus._BboxCast(startPos, endPos, ignoreEntities, TracePlus._IgnoreSet(ignoreEntities), TracePlus._Settings(settings), null)
+    return TracePlus._BboxCast(startPos, endPos, ignoreEntities, TracePlus._IgnoreSet(ignoreEntities), TracePlus._Settings(settings))
 }
 
 /*
@@ -31,13 +31,13 @@ TracePlus["FromEyes"]["Bbox"] <- function(distance, player, ignoreEntities = nul
     local ignoreSet = TracePlus._IgnoreSet(ignoreEntities)
     ignoreSet[player.entindex()] <- true
 
-    return TracePlus._BboxCast(startPos, endPos, ignoreEntities, ignoreSet, TracePlus._Settings(settings), null)
+    return TracePlus._BboxCast(startPos, endPos, ignoreEntities, ignoreSet, TracePlus._Settings(settings))
 }
 
 /*
  * The bbox cast itself, shared by the public casts, which validate the arguments first.
 */
-TracePlus["_BboxCast"] <- function(startPos, endPos, ignoreEntities, ignoreSet, settings, insideTestPos) {
+TracePlus["_BboxCast"] <- function(startPos, endPos, ignoreEntities, ignoreSet, settings) {
     local SCOPE = {} // TODO potential place for improvement
 
     SCOPE.startpos <- startPos;
@@ -45,7 +45,7 @@ TracePlus["_BboxCast"] <- function(startPos, endPos, ignoreEntities, ignoreSet, 
     SCOPE.ignoreEntities <- ignoreEntities
     SCOPE.settings <- settings
 
-    local result = BboxTraceAnalyzer(startPos, endPos, ignoreSet, settings, insideTestPos)
+    local result = BboxTraceAnalyzer(startPos, endPos, ignoreSet, settings)
 
     local traceResult = TracePlus.Result.Bbox(SCOPE, result.hitpos, result.hitent)
     traceResult.surfaceNormal = result.hitnormal

@@ -145,18 +145,18 @@ class BufferedEntity {
      * @param {table} ignoreSet - The entindex of every entity to ignore, as keys (see TracePlus._IgnoreSet).
      * @param {TraceSettings} settings - The settings to use for the trace.
     */
-    constructor(startpos, endpos, ignoreSet, settings, insideTestPos = null) {
+    constructor(startpos, endpos, ignoreSet, settings) {
         if(typeof settings != "TraceSettings") throw("Invalid trace settings provided. Expected an instance of TracePlus.Settings")
         this.settings = settings
         this.traceId = _traceIdCounter++
 
-        local result = this.Trace(startpos, endpos, ignoreSet, insideTestPos)
+        local result = this.Trace(startpos, endpos, ignoreSet)
         this.hitpos = result[0]
         this.hitent = result[1]
         this.hitnormal = result[2]
     }
 
-    function Trace(startPos, endPos, ignoreSet, insideTestPos) array(hitPos, hitEnt, hitNormal)
+    function Trace(startPos, endPos, ignoreSet) array(hitPos, hitEnt, hitNormal)
     function shouldHitEntityCached(BEnt, ignoreEntities) bool
 }
 
@@ -169,19 +169,18 @@ class BufferedEntity {
  * for unrotated entities and players, in entity space (an oriented box) for rotated ones. The first segment
  * with a hit returns its nearest entry point and the normal of the entered face. Entity data is cached in
  * EntBufferTable by entindex and rebuilt when the entity's origin or angles, rounded to 0.001, change.
- * Entities whose box contains `insideTestPos` are skipped for the rest of this trace. If startPos is outside
- * the map (macros.PointInBounds), the result is a world hit at startPos.
+ * An entity whose box contains startPos is skipped for the rest of this trace (the player box, big hollow boxes
+ * like chamber doors), unless its class is in settings.hitInsideClasses and startPos is deep inside it: then it is
+ * hit right at startPos. If startPos is outside the map (macros.PointInBounds), the result is a world hit at startPos.
  *
  * @param {Vector} startPos - The start position of the trace.
  * @param {Vector} endPos - The end position of the trace.
  * @param {table} ignoreSet - The entindex of every entity to ignore, as keys (see TracePlus._IgnoreSet).
- * @param {Vector|null} insideTestPos - Entities whose bbox contains this point are skipped for the whole trace. (optional, defaults to startPos)
  * @returns {array} - [hitPos, hitEntity, hitNormal]: hitEntity is the hit pcapEntity, or null with hitPos being the TraceLine hit; hitNormal is the entered face normal, null for world hits and hits at a segment start.
 */
-function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreSet, insideTestPos = null) {
+function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreSet) {
     // Preventing VScript errors and ensuring correct results even with a broken TraceLine
     if(macros.PointInBounds(startPos) == false) return [startPos, null, null]
-    if(insideTestPos == null) insideTestPos = startPos
 
     // World hit from TraceLine; entities are only searched up to it.
     local hitPos = startPos + (endPos - startPos) * TraceLine(startPos, endPos, null)
@@ -259,9 +258,11 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreSet, insideTestPos = n
             
 
             // This handles the specific case where the trace starts *inside* an entity's bounding box
-            if(segment == 0.0 && BEnt.Contains(insideTestPos)) {
-                skipped[idx] <- true
-                continue
+            if(segment == 0.0 && BEnt.Contains(startPos)) {
+                if( !settings._isHitInside(BEnt.classname) ) {
+                    skipped[idx] <- true
+                    continue
+                }
             }
 
             // Quick broad-phase check

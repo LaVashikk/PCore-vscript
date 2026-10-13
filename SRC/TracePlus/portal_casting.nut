@@ -139,10 +139,9 @@ TracePlus["PortalBbox"] <- function(startPos, endPos, ignoreEntities = null, set
 TracePlus["_PortalBboxCast"] <- function(startPos, endPos, ignoreEntities, ignoreSet, settings) {
     local length = (endPos - startPos).Length()
     local previousTraceData
-    local insideTestPos = null
     // Portal castings
     for (local i = 0; i < MAX_PORTAL_CAST_DEPTH; i++) {
-        local traceData = TracePlus._BboxCast(startPos, endPos, ignoreEntities, ignoreSet, settings, insideTestPos)
+        local traceData = TracePlus._BboxCast(startPos, endPos, ignoreEntities, ignoreSet, settings)
         traceData.portalEntryInfo = previousTraceData
 
         local hitPos = traceData.GetHitPos()
@@ -176,9 +175,8 @@ TracePlus["_PortalBboxCast"] <- function(startPos, endPos, ignoreEntities, ignor
 
         local ray = _ApplyPortal(startPos, hitPos, length, portal, partnerPortal);
         // Start 7 units out of the exit portal so that the TraceLine does not start inside the wall.
+        // todo make sure it's not too much for `hitInsideClasses`
         startPos = ray.startPos + partnerPortal.GetForwardVector() * 7
-        // TODO: THIS SO FUCKING CURSED I HATE THIS!!! MAKE BETTER SHIT SOMEDAY PLEASE!
-        insideTestPos = ray.startPos - partnerPortal.GetForwardVector()
         endPos = ray.endPos
         previousTraceData = traceData
     }
