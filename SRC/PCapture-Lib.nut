@@ -9,7 +9,7 @@
 |    GitHud repo: https://github.com/LaVashikk/PCapture-LIB                          |
 +----------------------------------------------------------------------------------+ */
 
-local version = "PCapture-Lib 4.0 Release Candidate"
+local version = "PCapture-Lib 5.0 DEV"
 local rootScope = getroottable()
 
 // `Self` must be in any case, even if the script is run directly by the interpreter
@@ -70,6 +70,13 @@ ScheduleEvent.AddInterval("global", function() {
     foreach(ent, _ in TracePlusIgnoreEnts) {
         if(!ent || !ent.IsValid()) {
             delete TracePlusIgnoreEnts[ent]
+        }
+    }
+    // linked_portal_door spawned after the map start, cheap enough to check here
+    for(local door; door = entLib.FindByClassname("linked_portal_door", door);) {
+        if(!door.GetUserData("processed")) {
+            SetupLinkedPortals()
+            break
         }
     }
 }, 5, 0)

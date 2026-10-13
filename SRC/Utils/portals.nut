@@ -77,7 +77,6 @@
         }
         else if(portal.CBaseEntity in doorPortals) {
             local maxs = doorPortals[portal.CBaseEntity].GetBoundingMaxs()
-            dev.error("CMP: from model [{} | {}], calc [{} {}]", halfWidth, halfHeight, maxs.y, maxs.z)
             halfWidth = maxs.y
             halfHeight = maxs.z
         }

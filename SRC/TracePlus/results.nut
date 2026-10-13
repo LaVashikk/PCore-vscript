@@ -228,7 +228,10 @@ results["Bbox"] <- class {
      * @returns {number} - The hit fraction. 
     */
     function GetFraction() {
-        return macros.GetDist(this.traceHandler.startpos, this.hitpos) / macros.GetDist(this.traceHandler.startpos, this.traceHandler.endpos)
+        local length = macros.GetDist(this.traceHandler.startpos, this.traceHandler.endpos)
+        // A zero-length trace goes nowhere and hits nothing, 0 / 0 would be NaN (and NaN != 1, so "hit")
+        if(length == 0) return 1.0
+        return macros.GetDist(this.traceHandler.startpos, this.hitpos) / length
     }
 
     /*
