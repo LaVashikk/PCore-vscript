@@ -96,17 +96,49 @@ TracePlus["PortalCheap"] <- function(startPos, endPos) {
  *
  * @param {Vector} startPos - The start position of the trace.
  * @param {Vector} endPos - The end position of the trace.
- * @param {array|ArrayEx|List|CBaseEntity|pcapEntity|null} ignoreEntities - A list of entities or a single entity to ignore during the trace. (optional)
+ * @param {array|ArrayEx|List|CBaseEntity|pcapEntity|null} ignoreEntities - A list of entities or a single entity to ignore during the trace. Invalid entities in it are skipped. (optional)
  * @param {TraceSettings} settings - The settings to use for the trace. (optional, defaults to TracePlus.defaultSettings)
  * @returns {BboxTraceResult} - The last cast; the previous ones are chained through GetPortalEntryInfo.
 */
 TracePlus["PortalBbox"] <- function(startPos, endPos, ignoreEntities = null, settings = null) {
+    if(typeof startPos != "Vector") throw("TracePlus.PortalBbox: 'startPos' argument must be a Vector, but got " + typeof startPos);
+    if(typeof endPos != "Vector") throw("TracePlus.PortalBbox: 'endPos' argument must be a Vector, but got " + typeof endPos);
+
+    return TracePlus._PortalBboxCast(startPos, endPos, ignoreEntities, TracePlus._IgnoreSet(ignoreEntities), TracePlus._Settings(settings))
+}
+
+/*
+ * Performs a bbox cast with portal support from the player's eyes. The player itself is always ignored.
+ *
+ * @param {number} distance - The distance of the trace.
+ * @param {CBaseEntity|pcapEntity} player - The player entity.
+ * @param {array|ArrayEx|List|CBaseEntity|pcapEntity|null} ignoreEntities - A list of entities or a single entity to ignore during the trace. Invalid entities in it are skipped. (optional)
+ * @param {TraceSettings} settings - The settings to use for the trace. (optional, defaults to TracePlus.defaultSettings)
+ * @returns {BboxTraceResult} - The last cast; the previous ones are chained through GetPortalEntryInfo.
+*/
+ TracePlus["FromEyes"]["PortalBbox"] <- function(distance, player, ignoreEntities = null, settings = null) {
+    local startPos = player.EyePosition()
+    local endPos = macros.GetEyeEndpos(player, distance)
+
+    local ignoreSet = TracePlus._IgnoreSet(ignoreEntities)
+    ignoreSet[player.entindex()] <- true
+
+    return TracePlus._PortalBboxCast(startPos, endPos, ignoreEntities, ignoreSet, TracePlus._Settings(settings))
+}
+
+
+// -------
+/*
+ * The portal casting loop of PortalBbox, with the arguments already validated.
+ * The exit portal of every pass is added to `ignoreSet`, which the caller owns.
+*/
+TracePlus["_PortalBboxCast"] <- function(startPos, endPos, ignoreEntities, ignoreSet, settings) {
     local length = (endPos - startPos).Length()
     local previousTraceData
     local insideTestPos = null
     // Portal castings
     for (local i = 0; i < MAX_PORTAL_CAST_DEPTH; i++) {
-        local traceData = TracePlus.Bbox(startPos, endPos, ignoreEntities, settings, insideTestPos)
+        local traceData = TracePlus._BboxCast(startPos, endPos, ignoreEntities, ignoreSet, settings, insideTestPos)
         traceData.portalEntryInfo = previousTraceData
 
         local hitPos = traceData.GetHitPos()
@@ -133,7 +165,7 @@ TracePlus["PortalBbox"] <- function(startPos, endPos, ignoreEntities = null, set
                 return traceData
         }
 
-        ignoreEntities = TracePlus.Settings.UpdateIgnoreEntities(ignoreEntities, partnerPortal)
+        ignoreSet[partnerPortal.entindex()] <- true
 
         local ray = _ApplyPortal(startPos, hitPos, length, portal, partnerPortal);
         // Start 7 units out of the exit portal so that the TraceLine does not start inside the wall.
@@ -144,21 +176,4 @@ TracePlus["PortalBbox"] <- function(startPos, endPos, ignoreEntities = null, set
         previousTraceData = traceData
     }
     return previousTraceData
-}
-
-/*
- * Performs a bbox cast with portal support from the player's eyes. The player itself is always ignored.
- *
- * @param {number} distance - The distance of the trace.
- * @param {CBaseEntity|pcapEntity} player - The player entity.
- * @param {array|ArrayEx|List|CBaseEntity|pcapEntity|null} ignoreEntities - A list of entities or a single entity to ignore during the trace. (optional)
- * @param {TraceSettings} settings - The settings to use for the trace. (optional, defaults to TracePlus.defaultSettings)
- * @returns {BboxTraceResult} - The last cast; the previous ones are chained through GetPortalEntryInfo.
-*/
- TracePlus["FromEyes"]["PortalBbox"] <- function(distance, player, ignoreEntities = null, settings = null) {
-    local startPos = player.EyePosition()
-    local endPos = macros.GetEyeEndpos(player, distance)
-    ignoreEntities = TracePlus.Settings.UpdateIgnoreEntities(ignoreEntities, player)
-
-    return TracePlus.PortalBbox(startPos, endPos, ignoreEntities, settings)
 }

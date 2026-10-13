@@ -278,30 +278,6 @@ TracePlus["Settings"] <- class {
     }
 
     /*
-     * Adds an entity to an ignoreEntities value: null gives the entity itself, an array or ArrayEx
-     * gets it appended in place, and a single entity is returned as a new array [newEnt, ignoreEntities].
-     *
-     * @param {array|ArrayEx|CBaseEntity|pcapEntity|null} ignoreEntities - The current entities to ignore.
-     * @param {CBaseEntity|pcapEntity} newEnt - The entity to add.
-     * @returns {array|ArrayEx|CBaseEntity|pcapEntity} - The updated value: `newEnt`, the same array, or a new array.
-    */
-    function UpdateIgnoreEntities(ignoreEntities, newEnt) {
-        if (ignoreEntities) {
-            if (typeof ignoreEntities == "array" || typeof ignoreEntities == "ArrayEx") {
-                ignoreEntities.append(newEnt)
-            }
-            else {
-                ignoreEntities = [newEnt, ignoreEntities]
-            }
-        }
-        else {
-            ignoreEntities = newEnt
-        }
-
-        return ignoreEntities
-    }
-
-    /*
      * Creates a copy of these settings. The class and model lists are copied, the filter functions are shared.
      *
      * @returns {TraceSettings} - The copy.
