@@ -1,56 +1,48 @@
 ::InitedPortals <- {}
 
+
 /*
- * Creates an enabled `func_portal_detector` with one extra key-value pair. Its bounds cover the whole map,
- * and TracePlus ignores it.
- * 
- * This function is not part of the public API.
- *
- * @param {string} extraKey - The key of the extra key-value pair (e.g. "LinkageGroupID").
- * @param {any} extraValue - The value of the extra key-value pair.
- * @returns {pcapEntity} - The created detector.
+ * Checks if the given `prop_portal` is a blue (primary) portal. The color comes from the pair detector,
+ * or from the model name for a portal no initialized pair has seen.
 */
-::_CreatePortalDetector <- function(extraKey, extraValue) {
-    local detector = entLib.CreateByClassname("func_portal_detector", {solid = 0, CollisionGroup = 10})
-    detector.SetKeyValue(extraKey, extraValue)
-    detector.SetBBox(Vector(32000, 32000, 32000) * -1, Vector(32000, 32000, 32000))
-    detector.SetTraceIgnore(true)
-    EntFireByHandle(detector, "Enable")
-    
-    return detector
+::IsBluePortal <- function(ent) {
+    local isBlue = ent.GetUserData("PortalIsBlue")
+    if(isBlue != null) return isBlue
+    return ent.GetModelName().find("portal2") == null
 }
 
 /*
- * Initializes a portal pair for portal casting (tracing lines through portals). 
- * 
- * Creates a `func_portal_detector` for the `LinkageGroupID` `id`. When a portal of this pair is placed,
- * its health is set to `id`; when it is removed, to 9999. FindPartnerForPropPortal matches portals by this
- * health to find the paired portal during portal traces.
- * 
- * @param {number} id - The ID of the portal pair (`LinkageGroupID`).
- * @returns {pcapEntity} - The detector of the pair. If the pair is already initialized, its existing detector.
+ * Initializes a portal pair for portal casting (tracing lines through portals).
+ *
+ * Creates a `func_portal_detector` for the `LinkageGroupID` `id` that keeps track of the group's prop_portals:
+ * a placed portal gets the health `id + 1` (so the default 0 means "not tracked") and its color, a removed one
+ * the health 9999, and every portal knows whether the engine has linked it right now.
+ * FindPartnerForPropPortal reads this to find the paired portal during portal traces.
 */
 ::InitPortalPair <- function(id) {
     if(id in InitedPortals) return InitedPortals[id]
 
     local detector = _CreatePortalDetector("LinkageGroupID", id)
+    InitedPortals[id] <- detector
 
     // compilestring bakes `id` into the code instead of a free variable: that syntax differs between Squirrel 2 and 3.
-    detector.ConnectOutputEx("OnStartTouchPortal", compilestring("activator.SetHealth(" + id + ")"))
-    detector.ConnectOutputEx("OnEndTouchPortal", compilestring("activator.SetHealth(9999)"))
-    InitedPortals[id] <- detector
-    
+    detector.ConnectOutputEx("OnStartTouchPortal", compilestring("_OnPortalPlaced(activator, " + id + ")"))
+    detector.ConnectOutputEx("OnStartTouchLinkedPortal", compilestring("_OnPortalLinked(activator, " + id + ")"))
+    detector.ConnectOutputEx("OnStartTouchPortal1", function() {entLib.FromEntity(activator).SetUserData("PortalIsBlue", true)})
+    detector.ConnectOutputEx("OnStartTouchPortal2", function() {entLib.FromEntity(activator).SetUserData("PortalIsBlue", false)})
+    detector.ConnectOutputEx("OnEndTouchPortal", function() {
+        local portal = entLib.FromEntity(activator)
+        portal.SetHealth(9999)
+        portal.SetUserData("PortalLinked", false)
+    })
+
+    // Enabling it already reports every portal of the group with its links, no need to rescan on top of that
+    _StartPortalRescan(id)
     return detector
 }
-
 /*
  * Initializes linked portal doors for portal tracing.
  * This function is not part of the public API.
- * 
- * For each `linked_portal_door` that has not been processed yet:
- * 1. Hooks its Close and Open inputs: Close makes TracePlus ignore the door and its partner, Open makes them traceable again.
- * 2. Sets its bounding box from the "width height" pair in its `model` keyvalue.
- *    A door with an empty `model` keyvalue gets no bounding box.
  * 
  * This function is called automatically at the initialization.
 */
@@ -82,31 +74,90 @@
 }
 
 /*
- * Finds the partner portal for a given `prop_portal` entity: another `prop_portal` with the same pair ID
- * in its health (set by the InitPortalPair detectors) that TracePlus does not ignore.
- * 
- * @param {pcapEntity} portal - The `prop_portal` entity to find the partner for. 
- * @returns {pcapEntity|null} - The partner portal entity, or `null` if no partner is found. 
+ * Finds the partner portal for a given `prop_portal` entity: the linked portal of the other color in the same
+ * pair, as tracked by the InitPortalPair detectors. Portals of a pair that was never initialized have no partner.
+ *
+ * @param {pcapEntity} portal - The `prop_portal` entity to find the partner for.
+ * @returns {pcapEntity|null} - The partner portal entity, or `null` if no partner is found.
 */
-::FindPartnerForPropPortal <- function(portal) {    
-    local portalPairId = portal.GetHealth()
-    for(local partner; partner = entLib.FindByClassname("prop_portal", partner);) { 
-        local partnerPairId = partner.GetHealth() 
-        if(portalPairId != partnerPairId || partner.entindex() == portal.entindex() || partner.GetClassname() != "prop_portal" || partner.GetUserData("TracePlusIgnore"))
-            continue
-        
-        return partner 
+::FindPartnerForPropPortal <- function(portal) {
+    // A map can hold any number of portals per LinkageGroupID, but the engine links at most one blue with one orange
+    if(!portal.GetUserData("PortalLinked")) return null
+
+    local group = portal.GetHealth()
+    local isBlue = IsBluePortal(portal)
+    for(local partner; partner = entLib.FindByClassname("prop_portal", partner);) {
+        if(partner.GetHealth() == group && partner.GetUserData("PortalLinked") && IsBluePortal(partner) != isBlue && !partner.GetUserData("TracePlusIgnore"))
+            return partner
     }
 
     return null
 }
 
+
 /*
- * Checks if the given `prop_portal` is a blue (primary) portal, by its model name.
- *
- * @param {pcapEntity} ent - The `prop_portal` to check.
- * @returns {boolean} - True if the model name does not contain "portal2" (the orange portal model), false otherwise.
+ * Creates an enabled `func_portal_detector` with one extra key-value pair. Its bounds cover the whole map,
+ * and TracePlus ignores it.
+ * 
+ * This function is not part of the public API.
 */
-::IsBluePortal <- function(ent) { 
-    return ent.GetModelName().find("portal2") == null
+::_CreatePortalDetector <- function(extraKey, extraValue) {
+    local detector = entLib.CreateByClassname("func_portal_detector", {solid = 0, CollisionGroup = 10})
+    detector.SetKeyValue(extraKey, extraValue)
+    detector.SetBBox(Vector(32000, 32000, 32000) * -1, Vector(32000, 32000, 32000))
+    detector.SetTraceIgnore(true)
+    EntFireByHandle(detector, "Enable")
+    
+    return detector
+}
+
+/*
+ * OnStartTouchPortal of a pair detector: marks the portal with its group and hooks its SetActivatedState once.
+ * This function is not part of the public API.
+*/
+::_OnPortalPlaced <- function(portal, id) {
+    portal = entLib.FromEntity(portal)
+    portal.SetHealth(id + 1)
+    if(portal.GetUserData("PortalHooked")) return
+
+    portal.SetUserData("PortalHooked", true)
+    // Closing through SetActivatedState fires no detector output, and the hook doesn't get the value (0 or 1)
+    // So any SetActivatedState means "links may have changed", the rescan tells the truth
+    portal.SetInputHook("SetActivatedState", function() {
+        local id = self.GetHealth() - 1
+        if(id in InitedPortals) _RescanPortalGroup(id)
+        return true
+    })
+}
+
+/*
+ * OnStartTouchLinkedPortal of a pair detector.
+ * This function is not part of the public API.
+*/
+::_OnPortalLinked <- function(portal, id) {
+    entLib.FromEntity(portal).SetUserData("PortalLinked", true)
+    // The engine announces only the portal that just got linked, never its partner: replay the group to hear both
+    _RescanPortalGroup(id)
+}
+
+/*
+ * Replays a pair detector: Disable fires OnEndTouchPortal for every portal of the group (drops the links),
+ * Enable a moment later reports them again with the links the engine has now.
+ * For a few frames the group's portals have no partner.
+ * This function is not part of the public API.
+*/
+::_RescanPortalGroup <- function(id) {
+    local detector = InitedPortals[id]
+    // The replay fires OnStartTouchLinkedPortal itself, that must not start another one
+    if(detector.GetUserData("PortalRescanning")) return
+
+    EntFireByHandle(detector, "Disable")
+    EntFireByHandle(detector, "Enable", "", 0.05)
+    _StartPortalRescan(id)
+}
+
+// Marks the group as rescanning until the replayed outputs are surely through
+::_StartPortalRescan <- function(id) {
+    InitedPortals[id].SetUserData("PortalRescanning", true)
+    ScheduleEvent.Add("global", function(id) {InitedPortals[id].SetUserData("PortalRescanning", false)}, 0.2, [id])
 }
