@@ -52,9 +52,6 @@ class BufferedEntity {
         this.roundedAnglesY = floor(angles.y * 1000.0 + 0.5)
         this.roundedAnglesZ = floor(angles.z * 1000.0 + 0.5)
 
-        // todo: perhaps for future improvements
-        // cachedSettingsId = id
-
         local mins = entity.GetBoundingMins()
         local maxs = entity.GetBoundingMaxs()
 

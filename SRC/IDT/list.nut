@@ -447,13 +447,6 @@
         return this
     }
 
-    // function _unsafeFastExtend(otherLis) { // todo for actions
-    //     this.lastNode._nextRef = otherLis.firstNode._nextRef
-    //     otherLis.firstNode._nextRef._prevRef = this.lastNode
-    //     this.lastNode = otherLis.firstNode._nextRef
-    //     return this
-    // }
-
     /*
      * Searches for a value or a matching element in the list.
      * 

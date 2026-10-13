@@ -137,7 +137,7 @@ ease["InOutElastic"] <- function(t) {
 }
 
 ease["InBounce"] <- function(t) { 
-    return 1 - math.ease.OutBounce(1 - t); // todo
+    return 1 - math.ease.OutBounce(1 - t);
 }
 
 ease["OutBounce"] <- function(t) { 

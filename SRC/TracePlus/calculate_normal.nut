@@ -1,11 +1,4 @@
-/*
- * Calculates the normal vector of a triangle.
- *
- * @param {Vector} v1 - The first vertex.
- * @param {Vector} v2 - The second vertex.
- * @param {Vector} v3 - The third vertex.
- * @returns {Vector} - The unit normal (v2 - v1) x (v3 - v1).
-*/
+// Calculates the normal vector of a triangle
 ::_calculateNormal <- function(v1, v2, v3) {
     local edge1 = v2 - v1
     local edge2 = v3 - v1
@@ -26,6 +19,7 @@ function _localDirToWorld(localDir, R) {
     return R.rotateVector(localDir)
 }
 
+// todo: all this file kinda legacy...
 
 /*
  * Calculates the impact normal of a world surface hit by a trace.
@@ -64,8 +58,7 @@ function _localDirToWorld(localDir, R) {
 /*
  * Calculates the impact normal on an entity's bounding box.
  *
- * The hit point is moved into the entity's local space (using its angles); the nearest face of the local
- * bounds gives the normal, which is rotated back to world space.
+ * Thanks Enderek for helping with that
  *
  * @param {Vector} startPos - The start position of the trace.
  * @param {Vector} hitPos - The hit position on the entity.
@@ -118,5 +111,3 @@ function _localDirToWorld(localDir, R) {
 
     return nWorld
 }
-
-// todo: inline _calculateNormal, _worldToLocal and _localDirToWorld into their callers

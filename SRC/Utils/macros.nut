@@ -461,6 +461,23 @@ macros["PointInBBox"] <- function(point, bMin, bMax) {
     )
 }
 
+/*
+ * Checks if two Axis-Aligned Bounding Boxes (AABB) intersect (overlap)
+ *
+ * @param {Vector} b1Min - Minimum point of Box 1.
+ * @param {Vector} b1Max - Maximum point of Box 1.
+ * @param {Vector} b2Min - Minimum point of Box 2.
+ * @param {Vector} b2Max - Maximum point of Box 2.
+ * @returns {boolean} - True if they intersect, false otherwise.
+*/
+macros["BBoxIntersect"] <- function(b1Min, b1Max, b2Min, b2Max) {
+    return (
+        b1Min.x <= b2Max.x && b1Max.x >= b2Min.x &&
+        b1Min.y <= b2Max.y && b1Max.y >= b2Min.y &&
+        b1Min.z <= b2Max.z && b1Max.z >= b2Min.z
+    )
+}
+
 
 /*
  * Checks if a point is within the map: a TraceLine of 64000 units from the point along each of

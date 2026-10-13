@@ -7,6 +7,7 @@ TracePlus["Settings"] <- class {
     ignoreAllClasses = false; // TODO: start using this optimization!!!!
     
     // Entity classnames to ignore during traces. An entry matches every classname that contains it; "*" ignores all classes.
+    // todo: remove edict-less ents from here!
     ignoreClasses = ArrayEx("viewmodel", "weapon_", "beam", "light",
         "trigger_", "phys_", "env_", "point_", "info_", "vgui_", "logic_",
         "clone", "prop_portal", "portal_base2D", "func_clip", "func_instance",
