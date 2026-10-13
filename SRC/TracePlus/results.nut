@@ -265,8 +265,9 @@ results["Bbox"] <- class {
 
     /*
      * Gets the impact normal of the surface hit by the trace.
-     * Calculated on the first call, then cached: CalculateImpactNormalFromBbox for a valid hit entity,
-     * CalculateImpactNormal otherwise.
+     * For an entity hit it is the normal of the entered bbox face, set by the trace itself. Otherwise it is
+     * calculated on the first call, then cached: CalculateImpactNormalFromBbox for a valid hit entity
+     * (a trace that started inside its box), CalculateImpactNormal for the world.
      *
      * @returns {Vector} - The impact normal vector.
     */

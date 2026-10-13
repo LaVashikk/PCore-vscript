@@ -3,14 +3,26 @@ class BufferedEntity {
     // todo: if this well be global and bbox will be changed, stuff broke
     entity = null;
     origin = null;
+    // World AABB: the broad phase for everyone, and the exact box for not `rotated` entities
     bboxMax = null;
     bboxMin = null;
 
-    // Cached rounded origin
+    // Cached rounded origin and angles
     roundedOriginX = null;
     roundedOriginY = null;
     roundedOriginZ = null;
-    
+    roundedAnglesX = null;
+    roundedAnglesY = null;
+    roundedAnglesZ = null;
+
+    // local bounds in entity space, F/L/U are the local x/y/z axes in world
+    rotated = false;
+    localMin = null;
+    localMax = null;
+    Fx = 0.0; Fy = 0.0; Fz = 0.0;
+    Lx = 0.0; Ly = 0.0; Lz = 0.0;
+    Ux = 0.0; Uy = 0.0; Uz = 0.0;
+
     // Cached expensive C++ calls
     classname = null;
     modelname = null;
@@ -32,24 +44,79 @@ class BufferedEntity {
         this.modelname = entity.GetModelName()  // Cache once!
 
         // round and CACHE!
+        local angles = entity.GetAngles()
         this.roundedOriginX = floor(this.origin.x * 1000.0 + 0.5)
         this.roundedOriginY = floor(this.origin.y * 1000.0 + 0.5)
         this.roundedOriginZ = floor(this.origin.z * 1000.0 + 0.5)
+        this.roundedAnglesX = floor(angles.x * 1000.0 + 0.5)
+        this.roundedAnglesY = floor(angles.y * 1000.0 + 0.5)
+        this.roundedAnglesZ = floor(angles.z * 1000.0 + 0.5)
 
-        // perhaps for future improvements
+        // todo: perhaps for future improvements
         // cachedSettingsId = id
-        
-        // This is needed for optimization with avoiding a lot of quaternion rotations
-        if(this.entity.IsSquareBbox()) {
-            this.bboxMax = entity.GetBoundingMaxs() + origin
-            this.bboxMin = entity.GetBoundingMins() + origin
+
+        local mins = entity.GetBoundingMins()
+        local maxs = entity.GetBoundingMaxs()
+
+        // Player bounds stay world-aligned whatever the angles, the engine never rotates them
+        if((this.roundedAnglesX == 0 && this.roundedAnglesY == 0 && this.roundedAnglesZ == 0) || this.classname == "player") {
+            this.bboxMin = mins + origin
+            this.bboxMax = maxs + origin
+            return
         }
-        else {
-            this.bboxMax = this.entity.CreateAABB(7) + origin
-            this.bboxMin = this.entity.CreateAABB(0) + origin
-        }
+
+        // evil math part. FOR PERFORMANCE!
+        local F = entity.GetForwardVector()
+        local U = entity.GetUpVector()
+        local L = U.Cross(F) // GetLeftVector returns the RIGHT one xd
+        this.rotated = true
+        this.localMin = mins
+        this.localMax = maxs
+        this.Fx = F.x; this.Fy = F.y; this.Fz = F.z
+        this.Lx = L.x; this.Ly = L.y; this.Lz = L.z
+        this.Ux = U.x; this.Uy = U.y; this.Uz = U.z
+
+        // The world AABB around the OBB
+        local c = (mins + maxs) * 0.5
+        local h = (maxs - mins) * 0.5
+        local center = origin + F * c.x + L * c.y + U * c.z
+        local half = Vector(
+            fabs(F.x) * h.x + fabs(L.x) * h.y + fabs(U.x) * h.z,
+            fabs(F.y) * h.x + fabs(L.y) * h.y + fabs(U.y) * h.z,
+            fabs(F.z) * h.x + fabs(L.z) * h.y + fabs(U.z) * h.z
+        )
+        this.bboxMin = center - half
+        this.bboxMax = center + half
     }
-    
+
+    // World point to entity space
+    function ToLocal(point) {
+        local x = point.x - origin.x
+        local y = point.y - origin.y
+        local z = point.z - origin.z
+        return Vector(x * Fx + y * Fy + z * Fz, x * Lx + y * Ly + z * Lz, x * Ux + y * Uy + z * Uz)
+    }
+
+    function Contains(point) {
+        // todo: inline this?
+        if(rotated) return macros.PointInBBox(this.ToLocal(point), localMin, localMax)
+        return macros.PointInBBox(point, bboxMin, bboxMax)
+    }
+
+    // FREE world normal of the box face
+    function FaceNormal(axis, sign) {
+        if(!rotated) {
+            local n = Vector(0, 0, 0)
+            if(axis == 0) n.x = sign
+            else if(axis == 1) n.y = sign
+            else n.z = sign
+            return n
+        }
+        if(axis == 0) return Vector(Fx * sign, Fy * sign, Fz * sign)
+        if(axis == 1) return Vector(Lx * sign, Ly * sign, Lz * sign)
+        return Vector(Ux * sign, Uy * sign, Uz * sign)
+    }
+
     function _tostring() return this.entity.tostring()
 }
 
@@ -65,8 +132,9 @@ class BufferedEntity {
     settings = null;
     hitpos = null;
     hitent = null;
-    hitnormal = null; // todo: this is cheap normal, but only for axis-box. How can i use it? no clue
-    traceId = null;  
+    // Normal of the hit box face, null for world hits and for hits right at the segment start
+    hitnormal = null;
+    traceId = null;
 
     /*
      * Constructor for BboxTraceAnalyzer.
@@ -84,7 +152,7 @@ class BufferedEntity {
         local result = this.Trace(startpos, endpos, ignoreEntities, insideTestPos)
         this.hitpos = result[0]
         this.hitent = result[1]
-        // this.hitnormal = result[2]
+        this.hitnormal = result[2]
     }
 
     function Trace(startPos, endPos, ignoreEntities, insideTestPos) array(hitPos, hitEnt, hitNormal) 
@@ -99,17 +167,18 @@ class BufferedEntity {
  *
  * TraceLine gives the world hit; only the part of the ray before it is searched for entities, in 4 segments
  * checked in order. For each segment, the entities within the sphere spanning it that pass the ignore lists,
- * SetTraceIgnore and the settings filters are tested against their world AABB (slab method); the first segment
- * with a hit returns its nearest entry point. Entity data is cached in EntBufferTable by entindex and rebuilt
- * when the entity's origin, rounded to 0.001 units, changes. Entities whose AABB contains `insideTestPos` are
- * skipped for the rest of this trace. If startPos is outside the map (macros.PointInBounds), the result is
- * a world hit at startPos.
+ * SetTraceIgnore and the settings filters are tested against their bounding box (slab method): in world space
+ * for unrotated entities and players, in entity space (an oriented box) for rotated ones. The first segment
+ * with a hit returns its nearest entry point and the normal of the entered face. Entity data is cached in
+ * EntBufferTable by entindex and rebuilt when the entity's origin or angles, rounded to 0.001, change.
+ * Entities whose box contains `insideTestPos` are skipped for the rest of this trace. If startPos is outside
+ * the map (macros.PointInBounds), the result is a world hit at startPos.
  *
  * @param {Vector} startPos - The start position of the trace.
  * @param {Vector} endPos - The end position of the trace.
  * @param {array|ArrayEx|List|CBaseEntity|pcapEntity|null} ignoreEntities - A list of entities or a single entity to ignore during the trace.
  * @param {Vector|null} insideTestPos - Entities whose bbox contains this point are skipped for the whole trace. (optional, defaults to startPos)
- * @returns {array} - [hitPos, hitEntity, hitNormal]: hitEntity is the hit pcapEntity, or null with hitPos being the TraceLine hit; hitNormal is always null.
+ * @returns {array} - [hitPos, hitEntity, hitNormal]: hitEntity is the hit pcapEntity, or null with hitPos being the TraceLine hit; hitNormal is the entered face normal, null for world hits and hits at a segment start.
 */
 function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities, insideTestPos = null) {
     // Preventing VScript errors and ensuring correct results even with a broken TraceLine
@@ -172,19 +241,19 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities, insideTestPo
             if(idx in EntBufferTable) { 
                 BEnt = EntBufferTable[idx]
                 if(BEnt.entity.IsValid()) {
-                    local cachedOrigin = BEnt.origin
                     local currentOrigin = ent.GetOrigin()
-                    
+                    local currentAngles = ent.GetAngles()
+
                     // Inline rounded comparison
-                    local rx = floor(currentOrigin.x * 1000.0 + 0.5)
-                    local ry = floor(currentOrigin.y * 1000.0 + 0.5)
-                    local rz = floor(currentOrigin.z * 1000.0 + 0.5)
-                    if(BEnt.roundedOriginX == rx && 
-                        BEnt.roundedOriginY == ry && 
-                        BEnt.roundedOriginZ == rz) {
-                        // Cache hit - entity hasn't moved
+                    if(BEnt.roundedOriginX == floor(currentOrigin.x * 1000.0 + 0.5) &&
+                        BEnt.roundedOriginY == floor(currentOrigin.y * 1000.0 + 0.5) &&
+                        BEnt.roundedOriginZ == floor(currentOrigin.z * 1000.0 + 0.5) &&
+                        BEnt.roundedAnglesX == floor(currentAngles.x * 1000.0 + 0.5) &&
+                        BEnt.roundedAnglesY == floor(currentAngles.y * 1000.0 + 0.5) &&
+                        BEnt.roundedAnglesZ == floor(currentAngles.z * 1000.0 + 0.5)) {
+                        // Cache hit - entity hasn't moved or turned
                     } else {
-                        // Position changed - rebuild cache
+                        // Moved or turned - rebuild cache
                         BEnt = BufferedEntity(ent)
                         BEnt.cachedTraceId = this.traceId
                         EntBufferTable[idx] <- BEnt
@@ -208,7 +277,7 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities, insideTestPo
             
 
             // This handles the specific case where the trace starts *inside* an entity's bounding box
-            if(segment == 0.0 && macros.PointInBBox(insideTestPos, BEnt.bboxMin, BEnt.bboxMax)) {
+            if(segment == 0.0 && BEnt.Contains(insideTestPos)) {
                 skipped[idx] <- true
                 continue
             }
@@ -226,11 +295,15 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities, insideTestPo
         //* Analytic narrow-phase: compute exact hit using 'slab method'
         local bestT = 999999999.9
         local bestEnt = null
-        local bestNormal = null
+        local bestAxis = -1
+        local bestSign = 0.0
 
         foreach(BEnt in entBuffer) {
             // Get precise intersection data using optimized slab method [i actually unrolled loop, lol]
-            local res = RayAabbHitOptimized(segmentStart, segmentEnd, BEnt.bboxMin, BEnt.bboxMax)
+            // Rotated ones go through entity space: a linear map, so t is the same t on the world segment
+            local res = BEnt.rotated
+                ? RayAabbHitOptimized(BEnt.ToLocal(segmentStart), BEnt.ToLocal(segmentEnd), BEnt.localMin, BEnt.localMax)
+                : RayAabbHitOptimized(segmentStart, segmentEnd, BEnt.bboxMin, BEnt.bboxMax)
             if(!res[0]) continue
 
             local tEnter = res[1]
@@ -240,14 +313,16 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities, insideTestPo
             if(tEnter < bestT) {
                 bestT = tEnter
                 bestEnt = BEnt
-                bestNormal = res[3]
+                bestAxis = res[3]
+                bestSign = res[4]
             }
         }
 
         // If we found a hit in this segment, return immediately
         if(bestEnt != null) {
             local hitPoint = segmentStart + (segmentEnd - segmentStart) * bestT
-            return [hitPoint, bestEnt.entity, bestNormal]
+            local normal = bestAxis >= 0 ? bestEnt.FaceNormal(bestAxis, bestSign) : null
+            return [hitPoint, bestEnt.entity, normal]
         }
         
         entBuffer.clear()
@@ -264,7 +339,8 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities, insideTestPo
  * @param {Vector} end - The end point of the ray segment. 
  * @param {Vector} bmin - The minimum corner of the AABB.
  * @param {Vector} bmax - The maximum corner of the AABB.
- * @returns {array} - [hit:boolean, t_enter:float, t_exit:float, normal:Vector|null]
+ * @returns {array} - [false, 0, 0, null] on a miss, or [true, tEnter, tExit, axis, sign] on a hit:
+ *   axis (0/1/2) and sign (+1 for the max face) give the entered face, axis is -1 if the segment starts inside the box.
 */
 function RayAabbHitOptimized(start, end, bmin, bmax) {
     // Pre-compute direction once
@@ -338,13 +414,7 @@ function RayAabbHitOptimized(start, end, bmin, bmax) {
     // Final range check
     if(tExit < 0.0 || tEnter > 1.0) return [false, 0, 0, null]
 
-    // todo; Build cheap normal vector - only if we have a hit
-    // local n = Vector(0, 0, 0) 
-    // if(nAxis == 0) n.x = nSign
-    // else if(nAxis == 1) n.y = nSign
-    // else n.z = nSign
-
-    return [true, tEnter, tExit, null]
+    return [true, tEnter, tExit, nAxis, nSign]
 }
 
 /*

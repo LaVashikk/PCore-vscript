@@ -35,8 +35,10 @@ TracePlus["Bbox"] <- function(startPos, endPos, ignoreEntities = null, settings 
 
     // todo: remove LEGACY from code! 
     local result = BboxTraceAnalyzer(startPos, endPos, ignoreEntities, settings, insideTestPos)
-    
-    return TracePlus.Result.Bbox(SCOPE, result.hitpos, result.hitent)
+
+    local traceResult = TracePlus.Result.Bbox(SCOPE, result.hitpos, result.hitent)
+    traceResult.surfaceNormal = result.hitnormal
+    return traceResult
 }
 
 /*
