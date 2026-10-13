@@ -75,14 +75,7 @@ ScheduleEvent.AddInterval("global", function() {
 }, 5, 0)
 
 
-/*
- * Player tracking. TrackPlayerJoins registers new players: eye tracking (a workaround for the missing
- * EyeForward in Portal 2), a portal pair, AllPlayers and OnPlayerJoined. HandlePlayerEventsMP/SP
- * poll the players for the OnPlayer* hooks.
-*/
 
-TrackPlayerJoins()
-ScheduleEvent.Add("global", TrackPlayerJoins, 0.4)
 if(IsMultiplayer()) {
     ScheduleEvent.Add("global", TrackPlayerJoins, 2) // Thanks Volve for making it take so long for players to initialize
     ScheduleEvent.AddInterval("global", HandlePlayerEventsMP, 0.3)
@@ -91,17 +84,14 @@ if(IsMultiplayer()) {
         // This session is running in P2MM, actively monitoring players.
         ScheduleEvent.AddInterval("global", TrackPlayerJoins, 1, 2)
 }
-else {
-    ScheduleEvent.AddInterval("global", HandlePlayerEventsSP, 0.5, 0.5)
-}
 
-
-// Portal casting support: set up linked_portal_door entities, and let a map-wide portal detector
-// toggle SetTraceIgnore on prop_portals as they are placed and removed.
-SetupLinkedPortals()
-local globalDetector = _CreatePortalDetector("CheckAllIDs", true)
-globalDetector.ConnectOutputEx("OnStartTouchPortal", function() {entLib.FromEntity(activator).SetTraceIgnore(false)})
-globalDetector.ConnectOutputEx("OnEndTouchPortal", function() {entLib.FromEntity(activator).SetTraceIgnore(true)})
+// No player and no portal_base2D for linked doors yet, the map isn't spawned
+RunWhenPlayerExists(function() {
+    TrackPlayerJoins()
+    SetupLinkedPortals()
+    if(!IsMultiplayer())
+        ScheduleEvent.AddInterval("global", HandlePlayerEventsSP, 0.5)
+})
 
 
 ::LIB_VERSION <- version
