@@ -61,6 +61,21 @@ const PLAYER_DEATH_MARKER = -999
     }
 }
 
+
+/*
+ * Runs `action` once a player exists.
+*/
+::RunWhenPlayerExists <- function(action) {
+    // logic_script runs SUPER early, but the player always spawns after every map entity
+    ScheduleEvent.Add("global", function():(action) {
+        while (!Entities.FindByClassname(null, "player")) {
+            yield 0.01
+        }
+
+        action()
+    }, 0.1)
+}
+
 /*
  * Handles player death in SP: calls OnPlayerDeath once when the player's health drops to 0 or below,
  * then sets the health to PLAYER_DEATH_MARKER.
