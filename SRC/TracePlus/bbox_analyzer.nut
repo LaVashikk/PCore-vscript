@@ -222,7 +222,8 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreEntities, insideTestPo
         local segmentStart = segmentCenter - halfSegment
         local segmentEnd = segmentCenter + halfSegment
 
-        for(local ent; ent = Entities.FindByClassnameWithin(ent, "*", segmentCenter, searchRadius);) {
+        // exp: FindInSphere, not FindByClassnameWithin("*"): same set minus edict-less ents. A bit faster!
+        for(local ent; ent = Entities.FindInSphere(ent, segmentCenter, searchRadius);) {
             local idx = ent.entindex()
             
             // == Avoid expensive shouldHitEntity == 
