@@ -31,9 +31,6 @@ class BufferedEntity {
     modelname = null;
     entindex = null;
     
-    // Set once the broad-phase test (RayAabbIntersectFast) failed for this entity.
-    ignoreChecksCalc = false;
-    
     // Result of shouldHitEntityCached, reused only by the trace with the id cachedTraceId.
     cachedShouldHit = null;
     cachedTraceId = null;
@@ -234,21 +231,23 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreSet) {
                     } else {
                         // Moved or turned - rebuild cache
                         BEnt = BufferedEntity(ent)
-                        BEnt.cachedTraceId = this.traceId
                         EntBufferTable[idx] <- BEnt
                     }
                 } else {
+                    // Dissolve() makes the wrapper invalid right away, but the engine keeps the entity for a second or two
+                    // It's on its way out: skip it, no need to rebuild it on every trace either
+                    if(BEnt.entity.CBaseEntity == ent && BEnt.entity.GetUserData("Dissolved")) continue
                     // Weird... Invalid/outdated entity with same id - let's rebuild
                     BEnt = BufferedEntity(ent)
-                    BEnt.cachedTraceId = this.traceId
                     // BEnt.cachedSettingsId = this.settings.id
                     EntBufferTable[idx] <- BEnt
                 }
             } else {
                 // Not in cache - create new
                 BEnt = BufferedEntity(ent)
-                BEnt.cachedTraceId = this.traceId
                 EntBufferTable[idx] <- BEnt
+                // Dissolved before it ever got into the cache
+                if(BEnt.entity.GetUserData("Dissolved")) continue
             }
 
             if(BEnt.isPoint) continue
@@ -266,11 +265,8 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreSet) {
             }
 
             // Quick broad-phase check
-            if(BEnt.ignoreChecksCalc || RayAabbIntersectFast(segmentStart, segmentEnd, BEnt.bboxMin, BEnt.bboxMax)) {
+            if(RayAabbIntersectFast(segmentStart, segmentEnd, BEnt.bboxMin, BEnt.bboxMax))
                 entBuffer.append(BEnt)
-            } else {
-                BEnt.ignoreChecksCalc = true
-            }
         }
 
         if(entBuffer.len() == 0) continue
@@ -287,7 +283,7 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreSet) {
             local res = BEnt.rotated
                 ? RayAabbHitOptimized(BEnt.ToLocal(segmentStart), BEnt.ToLocal(segmentEnd), BEnt.localMin, BEnt.localMax)
                 : RayAabbHitOptimized(segmentStart, segmentEnd, BEnt.bboxMin, BEnt.bboxMax)
-            if(!res[0]) continue
+            if(!res) continue
 
             local tEnter = res[1]
             if(tEnter < 0.0) tEnter = 0.0
@@ -322,7 +318,7 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreSet) {
  * @param {Vector} end - The end point of the ray segment. 
  * @param {Vector} bmin - The minimum corner of the AABB.
  * @param {Vector} bmax - The maximum corner of the AABB.
- * @returns {array} - [false, 0, 0, null] on a miss, or [true, tEnter, tExit, axis, sign] on a hit:
+ * @returns {array|null} - null on a miss, or [true, tEnter, tExit, axis, sign] on a hit:
  *   axis (0/1/2) and sign (+1 for the max face) give the entered face, axis is -1 if the segment starts inside the box.
 */
 function RayAabbHitOptimized(start, end, bmin, bmax) {
@@ -340,7 +336,7 @@ function RayAabbHitOptimized(start, end, bmin, bmax) {
     // Unrolled X axis
     local adx = fabs(dx)
     if(adx < EPS) {
-        if(start.x < bmin.x || start.x > bmax.x) return [false, 0, 0, null]
+        if(start.x < bmin.x || start.x > bmax.x) return null
     } else {
         local invDx = 1.0 / dx
         local t1 = (bmin.x - start.x) * invDx
@@ -353,13 +349,13 @@ function RayAabbHitOptimized(start, end, bmin, bmax) {
             if(t1 > tEnter) { tEnter = t1; nAxis = 0; nSign = -1.0 }
             if(t2 < tExit) tExit = t2
         }
-        if(tEnter > tExit) return [false, 0, 0, null]
+        if(tEnter > tExit) return null
     }
 
     // Unrolled Y axis
     local ady = fabs(dy)
     if(ady < EPS) {
-        if(start.y < bmin.y || start.y > bmax.y) return [false, 0, 0, null]
+        if(start.y < bmin.y || start.y > bmax.y) return null
     } else {
         local invDy = 1.0 / dy
         local t1 = (bmin.y - start.y) * invDy
@@ -372,13 +368,13 @@ function RayAabbHitOptimized(start, end, bmin, bmax) {
             if(t1 > tEnter) { tEnter = t1; nAxis = 1; nSign = -1.0 }
             if(t2 < tExit) tExit = t2
         }
-        if(tEnter > tExit) return [false, 0, 0, null]
+        if(tEnter > tExit) return null
     }
 
     // Unrolled Z axis
     local adz = fabs(dz)
     if(adz < EPS) {
-        if(start.z < bmin.z || start.z > bmax.z) return [false, 0, 0, null]
+        if(start.z < bmin.z || start.z > bmax.z) return null
     } else {
         local invDz = 1.0 / dz
         local t1 = (bmin.z - start.z) * invDz
@@ -391,11 +387,11 @@ function RayAabbHitOptimized(start, end, bmin, bmax) {
             if(t1 > tEnter) { tEnter = t1; nAxis = 2; nSign = -1.0 }
             if(t2 < tExit) tExit = t2
         }
-        if(tEnter > tExit) return [false, 0, 0, null]
+        if(tEnter > tExit) return null
     }
 
     // Final range check
-    if(tExit < 0.0 || tEnter > 1.0) return [false, 0, 0, null]
+    if(tExit < 0.0 || tEnter > 1.0) return null
 
     return [true, tEnter, tExit, nAxis, nSign]
 }
@@ -460,11 +456,12 @@ function RayAabbIntersectFast(start, end, bmin, bmax) {
 */
 function BboxTraceAnalyzer::shouldHitEntityCached(BEnt) {
     // Result cached earlier in this trace
-    if(BEnt.cachedTraceId == this.traceId && BEnt.cachedShouldHit != null) {
+    if(BEnt.cachedTraceId == this.traceId) {
         return BEnt.cachedShouldHit
     }
     
     local ent = BEnt.entity.CBaseEntity
+    BEnt.cachedTraceId = this.traceId
     
     // Settings filters
     if(settings.ApplyIgnoreFilter(ent)) {
