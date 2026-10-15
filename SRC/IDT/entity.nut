@@ -1045,8 +1045,9 @@ function pcapEntity::SetModel(model_name) this.CBaseEntity.SetModel(model_name)
 function pcapEntity::SetOrigin(vector) this.CBaseEntity.SetOrigin(vector)
 function pcapEntity::SetAngles(x, y, z) this.CBaseEntity.SetAngles(x, y, z)
 function pcapEntity::SetVelocity(vector) this.CBaseEntity.SetVelocity(vector)
-function pcapEntity::SetBBox(mins, maxs) this.CBaseEntity.SetSize(mins, maxs)
-function pcapEntity::SetSize(mins, maxs) this.CBaseEntity.SetSize(mins, maxs)
+// TracePlus caches bboxes and only notices moves and turns. A size change outside these two is the user's problem: TracePlus.InvalidateEntity
+function pcapEntity::SetBBox(mins, maxs) { this.CBaseEntity.SetSize(mins, maxs); TracePlus.InvalidateEntity(this) }
+function pcapEntity::SetSize(mins, maxs) { this.CBaseEntity.SetSize(mins, maxs); TracePlus.InvalidateEntity(this) }
 
 // KeyValues manipulation
 function pcapEntity::__KeyValueFromInt(key, value) return this.CBaseEntity.__KeyValueFromInt(key, value)
