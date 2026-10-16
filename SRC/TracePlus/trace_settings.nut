@@ -58,7 +58,7 @@ TracePlus["Settings"] <- class {
     */
     function IgnoreClasses(...) {
         for(local i = 0; i < vargc; i++)
-            _addMasks(this.ignoredClasses, vargv[i], "IgnoreClasses")
+            this._addMasks(this.ignoredClasses, vargv[i], "IgnoreClasses")
         this.ignoreAllClasses = this.ignoredClasses.contains("*")
         this.classCache = {}
         return this
@@ -71,7 +71,7 @@ TracePlus["Settings"] <- class {
     */
     function ExceptClasses(...) {
         for(local i = 0; i < vargc; i++)
-            _addMasks(this.exceptedClasses, vargv[i], "ExceptClasses")
+            this._addMasks(this.exceptedClasses, vargv[i], "ExceptClasses")
         this.classCache = {}
         return this
     }
@@ -108,7 +108,7 @@ TracePlus["Settings"] <- class {
     */
     function IgnoreModels(...) {
         for(local i = 0; i < vargc; i++)
-            _addMasks(this.ignoredModels, vargv[i], "IgnoreModels")
+            this._addMasks(this.ignoredModels, vargv[i], "IgnoreModels")
         this.modelCache = {}
         return this
     }
@@ -201,14 +201,14 @@ TracePlus["Settings"] <- class {
     function _addMasks(list, arg, caller) {
         local type = typeof arg
         if(type == "string") {
-            list.append(_normalizeMask(arg, caller))
+            list.append(this._normalizeMask(arg, caller))
             return
         }
         if(type != "array" && type != "ArrayEx") throw("TracePlus.Settings." + caller + ": expected strings, arrays or ArrayEx, but got " + type)
 
         foreach(mask in (type == "ArrayEx" ? arg.arr : arg)) {
             if(typeof mask != "string") throw("TracePlus.Settings." + caller + ": expected string masks, but got " + typeof mask)
-            list.append(_normalizeMask(mask, caller))
+            list.append(this._normalizeMask(mask, caller))
         }
     }
 

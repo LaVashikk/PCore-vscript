@@ -16,5 +16,5 @@ macros.CreateCommand("PCore_schedule_list", "script try { printl(macros.GetKeys(
 macros.CreateCommand("PCore_schedule_clear", "script ScheduleEvent.CancelAll()")
 
 // Information dump commands
-macros.CreateCommand("PCore_vs_events", "script try { printl(macros.GetKeys(::AllScriptEvents).join(commands_separator)) } catch(_) {}")
+macros.CreateCommand("PCore_vs_events", "script try { printl(macros.GetKeys(ScriptEvents._events).join(commands_separator)) } catch(_) {}")
 macros.CreateCommand("PCore_players", "script try { printl(AllPlayers.join(commands_separator)) } catch(_) {}")

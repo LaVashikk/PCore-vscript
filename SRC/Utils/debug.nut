@@ -39,7 +39,8 @@
     */
     DrawEntityAABB = function(ent, color, time) {
         if (developer() == 0) return
-        DebugDrawBox(ent.GetOrigin(), ent.CreateAABB(0), ent.CreateAABB(7), color.x, color.y, color.z, 9, time)
+        local aabb = ent.GetAABB()
+        DebugDrawBox(ent.GetOrigin(), aabb.min, aabb.max, color.x, color.y, color.z, 9, time)
     },
 
     /*

@@ -61,7 +61,7 @@
     function Emit(eventName, ...) {
         if(typeof eventName != "string") throw("ScriptEvents.Emit: the event name must be a string, but got " + typeof eventName)
         if(!(eventName in this._events)) {
-            dev.warning("ScriptEvents: nothing is subscribed to {}", eventName)
+            dev.trace("ScriptEvents: nothing is subscribed to {}", eventName)
             return false
         }
 
