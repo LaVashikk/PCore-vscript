@@ -210,6 +210,9 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreSet) {
             if((ent in TracePlusIgnoreEnts) && TracePlusIgnoreEnts[ent] == true) continue
             // 3. The trace started inside this entity (flagged at segment 0 below)
             if(idx in skipped) continue
+            // 4. Ignored by class: skip before any cache work, a moving viewmodel would be rebuilt on every trace otherwise
+            // Not with a collision filter, it may let an ignored class through
+            if(!settings.shouldRayHitEntity && settings._isClassIgnored(ent.GetClassname())) continue
 
             local BEnt = null
             
