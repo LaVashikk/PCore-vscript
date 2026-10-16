@@ -7,7 +7,7 @@
 */
 ::ScheduledEventLoop <- function() {
     local time = Time() + 0.0001
-    local eventsToDelete = List() // Buffer for safe deletion
+    local eventsToDelete = [] // Buffer for safe deletion
 
     // Iterate over each event name and its corresponding event list. 
     foreach(eventName, eventInfo in ScheduleEvent.eventsList) {
@@ -23,7 +23,7 @@
             }
             catch(exception) {
                 // ScheduleEvent unwinding
-                macros.fprint("\nSCHEDULED EVENT\n[Name] {}\n{}\n[Exception] {}\n[Event Action List] {}\n[Time] {}", eventName, event.GetInfo(), exception, ScheduleEvent.eventsList[eventName], time)
+                macros.fprint("\nSCHEDULED EVENT\n[Name] {}\n{}\n[Exception] {}\n[Event Action List] {}\n[Time] {}", eventName, event.GetInfo(), exception, eventInfo, time)
 
                 if(typeof event.action == "function" || typeof event.action == "native function") {
                     printl("\nFUNCTION INFO")
@@ -44,11 +44,11 @@
     }
 
     // Safely delete events after completion of the main loop.
-    foreach (eventName in eventsToDelete.iter()) {
-        if (eventName in ScheduleEvent.eventsList) {
+    foreach (eventName in eventsToDelete) {
+        // The current list, not the one from the loop: an action may have cancelled and re-added the event
+        if (eventName in ScheduleEvent.eventsList && ScheduleEvent.eventsList[eventName].length == 0) {
             ScheduleEvent.eventsList.rawdelete(eventName)
             if(developer() > 0) dev.trace("Event {} closed.", eventName)
         }
     }
-    eventsToDelete.clear()
 }
