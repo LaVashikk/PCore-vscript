@@ -90,6 +90,18 @@
         return this
     }
 
+    // Inserts a value right after `node` (firstNode for the head). For code that already walks the nodes
+    function _insertAfterNode(node, value) {
+        local newNode = ListNode(value)
+        newNode._prevRef = node
+        newNode._nextRef = node._nextRef
+        if(node._nextRef) node._nextRef._prevRef = newNode
+        else this.lastNode = newNode
+        node._nextRef = newNode
+        this.length++
+        return this
+    }
+
     /*
      * Gets the node at a specific index in the list.
      * 

@@ -19,34 +19,14 @@ ScheduleEvent["Add"] <- function(eventName, action, timeDelay, args = null, scop
     }
 
     local newScheduledEvent = ScheduleAction(scope, action, timeDelay, args)
-    local currentActionList = ScheduleEvent.eventsList[eventName]
+    local queue = ScheduleEvent.eventsList[eventName]
 
-    // Keep the queue sorted by execution time: ScheduledEventLoop stops at the first action that is not due.
-    if(currentActionList.len() == 0 || currentActionList.top() <= newScheduledEvent) {
-        currentActionList.append(newScheduledEvent)
-        return
-    } 
-    
-    local low = 0
-    local high = currentActionList.len() - 1
-    local mid
-
-    local tempActionArr = currentActionList.toarray()
-    while (low <= high) {
-        mid = (low + high) / 2
-        if (tempActionArr[mid] < newScheduledEvent) {
-            low = mid + 1
-        }
-        else if (tempActionArr[mid] > newScheduledEvent) {
-            high = mid - 1
-        }
-        else {
-            low = mid
-            break
-        }
-    }
-    
-    currentActionList.insert(low, newScheduledEvent)
+    // Keep the queue sorted by execution time: ScheduledEventLoop stops at the first action that is not due
+    // Walk back from the tail, a new action almost always lands near the end
+    local node = queue.lastNode
+    while(node != queue.firstNode && node.value.executionTime > newScheduledEvent.executionTime)
+        node = node._prevRef
+    queue._insertAfterNode(node, newScheduledEvent)
 }
 
 /*
