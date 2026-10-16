@@ -729,32 +729,41 @@
         local mins = this.GetBoundingMins();
         local maxs = this.GetBoundingMaxs();
         
-        local sizeX = abs(maxs.x - mins.x)
-        local sizeY = abs(maxs.y - mins.y)
-        local sizeZ = abs(maxs.z - mins.z)
+        local sizeX = fabs(maxs.x - mins.x)
+        local sizeY = fabs(maxs.y - mins.y)
+        local sizeZ = fabs(maxs.z - mins.z)
 
         return sizeX == sizeY && sizeY == sizeZ;
     }
 
     /*
-     * Gets the center of the entity's bounds (GetBoundingMins, GetBoundingMaxs), relative to its origin.
+     * Gets half the size of the entity's bounds (GetBoundingMins, GetBoundingMaxs), not rotated.
      *
-     * @returns {Vector} - The center of the bounds.
+     * @returns {Vector} - (maxs - mins) * 0.5.
     */
-    function GetBoundingCenter() {
+    function GetHalfSize() {
         return (this.CBaseEntity.GetBoundingMaxs() - this.CBaseEntity.GetBoundingMins()) * 0.5
     }
 
     /*
-     * Gets the axis-aligned box that encloses the entity's rotated bounds, relative to its origin (see CreateAABB).
+     * Gets the axis-aligned box that encloses the entity's rotated bounds (GetBBoxPoints).
+     * Relative to the origin like GetBoundingMins/Maxs: add GetOrigin() for world positions.
      *
-     * @returns {table} - {min, center, max}: the min corner, the center and the max corner of the box.
+     * @returns {table} - {min, max, halfSize}: the min corner, the max corner and half the size of the box.
     */
     function GetAABB() {
+        local points = this.GetBBoxPoints()
+        local min = Vector(points[0].x, points[0].y, points[0].z)
+        local max = Vector(points[0].x, points[0].y, points[0].z)
+        foreach(p in points) {
+            if(p.x < min.x) min.x = p.x; else if(p.x > max.x) max.x = p.x
+            if(p.y < min.y) min.y = p.y; else if(p.y > max.y) max.y = p.y
+            if(p.z < min.z) min.z = p.z; else if(p.z > max.z) max.z = p.z
+        }
         return {
-            min = this.CreateAABB(0),
-            center = this.CreateAABB(4),
-            max = this.CreateAABB(7)
+            min = min,
+            max = max,
+            halfSize = (max - min) * 0.5
         }
     }
 
@@ -870,41 +879,6 @@
         return FindPartnerForPropPortal(this)
     }
 
-
-    /*
-     * Gets a point of the axis-aligned box that encloses the entity's rotated bounds (GetBBoxPoints).
-     *
-     * @param {number} stat - 0 for the min corner, 7 for the max corner, 4 for the center.
-     * @returns {Vector} - The point, relative to the entity's origin.
-    */
-    function CreateAABB(stat) { 
-        local angles = this.GetAngles()
-        if(stat == 4) 
-            angles = Vector(45, 45, 45)
-
-        local all_vertex = this.GetBBoxPoints()
-        local x = array(8)
-        local y = array(8)
-        local z = array(8)
-
-        foreach(idx, vec in all_vertex) {
-            x[idx] = vec.x
-            y[idx] = vec.y
-            z[idx] = vec.z
-        }
-
-        x.sort(); y.sort(); z.sort()
- 
-        local result
-        if(stat == 4) { // centered
-            result = ( Vector(x[7], y[7], z[7]) - Vector(x[0], y[0], z[0]) ) * 0.5
-        } 
-        else {
-            result = Vector(x[stat], y[stat], z[stat])
-        }
-        
-        return result
-    }
 
     /*
      * Gets the 8 corners of the entity's bounds rotated by its angles, relative to its origin (add GetOrigin()
