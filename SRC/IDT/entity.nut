@@ -62,8 +62,7 @@
 
     /*
      * Dissolves the entity through the shared env_entity_dissolver (`dissolver`).
-     * Once it has run, IsValid() returns false. The dissolver finds its target by targetname, so an entity
-     * without one, or with one shared by other entities, is renamed to a unique one first.
+     * Once it has run, IsValid() returns false. The entity keeps its name, others with the same name stay.
      *
      * @param {number} fireDelay - Delay in seconds before applying. (default: 0)
      * @param {string} eventName - The name of the event to schedule the delayed call under. (default: "global")
@@ -73,15 +72,9 @@
             return ScheduleEvent.Add(eventName, this.Dissolve, fireDelay, null, this)
 
         if(!dissolver || !dissolver.IsValid()) throw("The entity 'dissolver' is missing, the Dissolve method will not work.")
-        if(this.GetName() == "")
-            this.SetUniqueName("targetname")
-        for(local entity; entity = Entities.FindByName(entity, this.GetName()); ) if(!macros.IsEqual(this, entity)) {
-            this.SetUniqueName()
-            break
-        }
-
-        dissolver.SetKeyValue("target", this.GetName())
-        EntFireByHandle(dissolver, "dissolve")
+        // Not the dissolver's `target`: it is shared, so N dissolves in one tick would all hit the last entity
+        // "!activator" also finds exactly this one, a name could be shared
+        EntFireByHandle(dissolver, "Dissolve", "!activator", 0, this)
 
         this.SetUserData("Dissolved", true)
     }
@@ -140,7 +133,7 @@
      * Sets a keyvalue of the entity and stores the value as user data, where GetKeyValue(key) reads it.
      *
      * @param {string} key - The key of the key-value pair.
-     * @param {int|float|Vector|string} value - The value of the key-value pair.
+     * @param {int|float|bool|Vector|string} value - The value of the key-value pair. A bool is sent as 1 or 0.
      * @param {number} fireDelay - Delay in seconds before applying. (default: 0)
      * @param {string} eventName - The name of the event to schedule the delayed call under. (default: "global")
     */
@@ -153,6 +146,8 @@
         switch (typeof value) {
             case "integer":
                 return this.CBaseEntity.__KeyValueFromInt(key, value);
+            case "bool":
+                return this.CBaseEntity.__KeyValueFromInt(key, value ? 1 : 0);
             case "float":
                 return this.CBaseEntity.__KeyValueFromFloat(key, value);
             case "Vector":
@@ -251,7 +246,7 @@
     */
     function EmitSoundEx(soundName, volume = 10, looped = false, fireDelay = 0, eventName = "global") {
         if(fireDelay != 0)
-            return ScheduleEvent.Add(eventName, this.EmitSoundEx, fireDelay, [soundName], this)
+            return ScheduleEvent.Add(eventName, this.EmitSoundEx, fireDelay, [soundName, volume, looped], this)
         
         // If the sound is still playing, only move its emitter to apply the new volume.
         local soundEnt = this.GetUserData(soundName)

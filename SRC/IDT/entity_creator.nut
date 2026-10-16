@@ -260,8 +260,9 @@
         }
 
         local new_entity = null
-        for(local ent; ent = Entities.FindByClassnameWithin(ent, "*", origin, radius);) {
-            if(ent.GetModelName() == model && ent != start_ent) {
+        // Continue after start_ent: starting over and skipping it alone loops A, B, A, B forever
+        for(local ent = start_ent; ent = Entities.FindByClassnameWithin(ent, "*", origin, radius);) {
+            if(ent.GetModelName() == model) {
                 new_entity = ent;
                 break;
             }
