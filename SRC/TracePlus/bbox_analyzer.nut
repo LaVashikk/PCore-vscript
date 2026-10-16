@@ -134,14 +134,6 @@ class BufferedEntity {
     hitnormal = null;
     traceId = null;
 
-    /*
-     * Constructor for BboxTraceAnalyzer.
-     *
-     * @param {Vector} startpos - The start position of the trace.
-     * @param {Vector} endpos - The end position of the trace.
-     * @param {table} ignoreSet - The entindex of every entity to ignore, as keys (see TracePlus._IgnoreSet).
-     * @param {TraceSettings} settings - The settings to use for the trace.
-    */
     constructor(startpos, endpos, ignoreSet, settings) {
         if(typeof settings != "TraceSettings") throw("Invalid trace settings provided. Expected an instance of TracePlus.Settings")
         this.settings = settings
@@ -158,22 +150,8 @@ class BufferedEntity {
 }
 
 /*
- * Traces from startPos to endPos against world geometry and entity bounding boxes.
- *
- * TraceLine gives the world hit; only the part of the ray before it is searched for entities, in 4 segments
- * checked in order. For each segment, the entities within the sphere spanning it that pass the ignore lists,
- * SetTraceIgnore and the settings filters are tested against their bounding box (slab method): in world space
- * for unrotated entities and players, in entity space (an oriented box) for rotated ones. The first segment
- * with a hit returns its nearest entry point and the normal of the entered face. Entity data is cached in
- * EntBufferTable by entindex and rebuilt when the entity's origin or angles, rounded to 0.001, change.
- * An entity whose box contains startPos is skipped for the rest of this trace (the player box, big hollow boxes
- * like chamber doors), unless its class is in settings.hitInsideClasses and startPos is deep inside it: then it is
- * hit right at startPos. If startPos is outside the map (macros.PointInBounds), the result is a world hit at startPos.
- *
- * @param {Vector} startPos - The start position of the trace.
- * @param {Vector} endPos - The end position of the trace.
- * @param {table} ignoreSet - The entindex of every entity to ignore, as keys (see TracePlus._IgnoreSet).
- * @returns {array} - [hitPos, hitEntity, hitNormal]: hitEntity is the hit pcapEntity, or null with hitPos being the TraceLine hit; hitNormal is the entered face normal, null for world hits and hits at a segment start.
+ * VScript TraceLine has its trace mask hardcoded to world geometry only.
+ * This method adds entities on top of it by testing their bounding boxes along the ray: fast, and filterable through TraceSettings
 */
 function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreSet) {
     // Preventing VScript errors and ensuring correct results even with a broken TraceLine
@@ -315,14 +293,8 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreSet) {
 }
 
 /*
- * Optimized AABB intersection - unrolled loop, fewer operations.
- * 
- * @param {Vector} start - The start point of the ray segment.
- * @param {Vector} end - The end point of the ray segment. 
- * @param {Vector} bmin - The minimum corner of the AABB.
- * @param {Vector} bmax - The maximum corner of the AABB.
- * @returns {array|null} - null on a miss, or [true, tEnter, tExit, axis, sign] on a hit:
- *   axis (0/1/2) and sign (+1 for the max face) give the entered face, axis is -1 if the segment starts inside the box.
+ * Narrow phase: where the segment enters the box and through which face, for the hit point and its normal.
+ * Returns null on a miss, or [true, tEnter, tExit, axis, sign]. Axis is -1 if start is already inside
 */
 function RayAabbHitOptimized(start, end, bmin, bmax) {
     // Pre-compute direction once
@@ -400,15 +372,11 @@ function RayAabbHitOptimized(start, end, bmin, bmax) {
 }
 
 /*
- * Fast AABB intersection check for broad phase (no normal calculation).
- * 
- * @param {Vector} start - Ray start point.
- * @param {Vector} end - Ray end point.
- * @param {Vector} bmin - AABB minimum.
- * @param {Vector} bmax - AABB maximum.
- * @returns {boolean} - True if intersection exists.
+ * Broad phase: just yes or no, no hit data and no allocation.
+ * Most candidates from the sphere miss the segment, and this throws them out cheaper than RayAabbHitOptimized
 */
 function RayAabbIntersectFast(start, end, bmin, bmax) {
+    // TODO: can be improved, because now kinda copy-paste with narrow-phase!!
     local dx = end.x - start.x
     local dy = end.y - start.y
     local dz = end.z - start.z
@@ -453,9 +421,9 @@ function RayAabbIntersectFast(start, end, bmin, bmax) {
 }
 
 /*
- * Checks whether the trace can hit an entity: the ignore filter (true skips it), then the collision filter
- * (true accepts it), then the ignored classes (unless it is also a priority class) and the ignored models.
- * The filter functions receive the raw CBaseEntity. The result is cached in BEnt for the current trace.
+ * TraceSettings verdict for an entity, kept in BEnt for the rest of the trace.
+ * Checks the ignore filter, the collision filter, then the ignored classes and models.
+ * Neighbor segments' spheres overlap, so the same entity comes up again, and the filters are user callbacks
 */
 function BboxTraceAnalyzer::shouldHitEntityCached(BEnt) {
     // Result cached earlier in this trace
@@ -467,17 +435,19 @@ function BboxTraceAnalyzer::shouldHitEntityCached(BEnt) {
     BEnt.cachedTraceId = this.traceId
     
     // Settings filters
-    if(settings.ApplyIgnoreFilter(ent)) {
+    // inlined 'ApplyIgnoreFilter'
+    if(settings.shouldIgnoreEntity && settings.shouldIgnoreEntity(ent)) {
         BEnt.cachedShouldHit = false
         return false
     }
     
-    if(settings.ApplyCollisionFilter(ent)) {
+    // inlined 'ApplyCollisionFilter'
+    if(settings.shouldRayHitEntity && settings.shouldRayHitEntity(ent)) { 
         BEnt.cachedShouldHit = true
         return true
     }
 
-    // Use cached classname and modelname (no C++ calls!), the settings cache the verdicts per name
+    // Use cached classname and modelname, the settings cache the verdicts per name
     if(settings._isClassIgnored(BEnt.classname) || settings._isModelIgnored(BEnt.modelname)) {
         BEnt.cachedShouldHit = false
         return false

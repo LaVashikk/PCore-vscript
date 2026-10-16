@@ -86,6 +86,8 @@ TracePlus["Settings"] <- class {
         return this
     }
 
+    // todo: add helper 'SetIgnoreAll'
+
     /*
      * Sets the list of entity classnames to prioritize during traces.
      *
@@ -163,7 +165,7 @@ TracePlus["Settings"] <- class {
      *
      * @returns {ArrayEx} - A copy of the ignored classnames.
     */
-    function GetIgnoreClasses() {
+    function GetIgnoredClasses() {
         return this.ignoreClasses.Clone()
     }
 
@@ -249,8 +251,6 @@ TracePlus["Settings"] <- class {
 
     /*
      * Gets the custom collision filter function. 
-     *
-     * @returns {function|null} - The collision filter function, or null if not set. 
     */
     function GetCollisionFilter() {
         return this.shouldRayHitEntity
@@ -258,43 +258,18 @@ TracePlus["Settings"] <- class {
 
     /*
      * Gets the custom ignore filter function. 
-     *
-     * @returns {function|null} - The ignore filter function, or null if not set. 
     */
     function GetIgnoreFilter() {
         return this.shouldIgnoreEntity
     }
 
     /*
-     * Applies the custom collision filter function to an entity.
-     *
-     * @param {CBaseEntity} entity - The entity to check, passed to the filter as is.
-     * @returns {boolean} - The result of the filter, or false if no filter is set.
-    */
-    function ApplyCollisionFilter(entity) {
-        return this.shouldRayHitEntity ? this.shouldRayHitEntity(entity) : false
-    }
-
-    /*
-     * Applies the custom ignore filter function to an entity.
-     *
-     * @param {CBaseEntity} entity - The entity to check, passed to the filter as is.
-     * @returns {boolean} - The result of the filter, or false if no filter is set.
-    */
-    function ApplyIgnoreFilter(entity) {
-        return this.shouldIgnoreEntity ? this.shouldIgnoreEntity(entity) : false
-    }
-
-    /*
      * Creates a copy of these settings. The class and model lists are copied, the filter functions are shared.
-     *
-     * @returns {TraceSettings} - The copy.
     */
     function Clone() {
         return clone this
     }
 
-    // Squirrel calls it on the fresh shallow copy, which still shares the lists and caches with `original`
     function _cloned(original) {
         this.ignoreClasses = original.ignoreClasses.Clone()
         this.priorityClasses = original.priorityClasses.Clone()

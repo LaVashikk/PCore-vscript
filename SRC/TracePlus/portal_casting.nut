@@ -85,7 +85,7 @@ TracePlus["PortalCheap"] <- function(startPos, endPos) {
  * @param {CBaseEntity|pcapEntity} player - The player entity.
  * @returns {TraceResult} - The last trace; the previous ones are chained through GetPortalEntryInfo.
 */
- TracePlus["FromEyes"]["PortalCheap"] <- function(distance, player) {
+TracePlus["FromEyes"]["PortalCheap"] <- function(distance, player) {
     local startpos = player.EyePosition()
     local endpos = macros.GetEyeEndpos(player, distance)
 
@@ -120,7 +120,7 @@ TracePlus["PortalBbox"] <- function(startPos, endPos, ignoreEntities = null, set
  * @param {TraceSettings} settings - The settings to use for the trace. (optional, defaults to TracePlus.defaultSettings)
  * @returns {BboxTraceResult} - The last cast; the previous ones are chained through GetPortalEntryInfo.
 */
- TracePlus["FromEyes"]["PortalBbox"] <- function(distance, player, ignoreEntities = null, settings = null) {
+TracePlus["FromEyes"]["PortalBbox"] <- function(distance, player, ignoreEntities = null, settings = null) {
     local startPos = player.EyePosition()
     local endPos = macros.GetEyeEndpos(player, distance)
 

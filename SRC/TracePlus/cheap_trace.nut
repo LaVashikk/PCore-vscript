@@ -6,7 +6,7 @@
  * @param {Vector} endpos - The end position of the trace.
  * @returns {TraceResult} - The trace result object.
 */
- TracePlus["Cheap"] <- function(startpos, endpos) {
+TracePlus["Cheap"] <- function(startpos, endpos) {
     local SCOPE = {}
 
     SCOPE.startpos <- startpos

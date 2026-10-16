@@ -7,12 +7,6 @@ results["Cheap"] <- class {
     surfaceNormal = null;
     portalEntryInfo = null;
 
-    /*
-     * Constructor for the result of a cheap trace. Its `typeof` is "TraceResult".
-     *
-     * @param {table} traceHandler - The trace handler object containing trace information.
-     * @param {Vector} hitpos - The hit position of the trace.
-    */
     constructor(traceHandler, hitpos) {
         this.traceHandler = traceHandler
         this.hitpos = hitpos
@@ -60,7 +54,7 @@ results["Cheap"] <- class {
      * @returns {boolean} - True if the trace hit something, false otherwise.
     */
     function DidHit() {
-        return this.traceHandler.fraction != 1
+        return fabs(this.traceHandler.fraction - 1.0) > 0.0001
     }
 
     /*
@@ -109,6 +103,12 @@ results["Cheap"] <- class {
         return this.surfaceNormal 
     } 
 
+    // Stubs for interface compatibility with Bbox trace results
+    function GetEntity() return null                                                                             
+    function GetEntityClassname() return null                                                                    
+    function DidHitWorld() return this.DidHit()                                                                  
+    function GetTraceSettings() return null                                                                      
+
     function _typeof() return "TraceResult"
     function _tostring() {
         return "TraceResult | startpos: " + GetStartPos() + ", endpos: " + GetEndPos() + ", fraction: " + GetFraction() + ", hitpos: " + GetHitPos()
@@ -127,13 +127,6 @@ results["Bbox"] <- class {
     surfaceNormal = null;
     portalEntryInfo = null;
 
-    /*
-     * Constructor for a BboxTraceResult object.
-     *
-     * @param {table} traceHandler - The trace handler object containing trace information.
-     * @param {Vector} hitpos - The hit position of the trace.
-     * @param {pcapEntity|null} hitent - The entity hit by the trace, or null.
-    */
     constructor(traceHandler, hitpos, hitent) {
         this.traceHandler = traceHandler
         this.hitpos = hitpos
@@ -210,7 +203,7 @@ results["Bbox"] <- class {
      * @returns {boolean} - True if the trace hit something, false otherwise.
     */
     function DidHit() {
-        return this.GetFraction() != 1
+        return fabs(this.GetFraction() - 1.0) > 0.0001
     }
 
     /*

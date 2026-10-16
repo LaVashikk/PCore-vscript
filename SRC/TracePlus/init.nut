@@ -10,7 +10,6 @@
 
 ::TracePlus <- {
     Result = {},
-    Portals = {},
     FromEyes = {},
 
     Settings = null,
@@ -27,6 +26,7 @@
  * @param {CBaseEntity|pcapEntity} ent - The entity to invalidate.
 */
 function TracePlus::InvalidateEntity(ent) {
+    if(!ent || !ent.IsValid()) return
     local idx = ent.entindex()
     if(idx in EntBufferTable) {
         EntBufferTable.rawdelete(idx)
