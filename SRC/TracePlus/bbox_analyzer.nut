@@ -189,8 +189,8 @@ function BboxTraceAnalyzer::Trace(startPos, endPos, ignoreSet) {
             // 3. The trace started inside this entity (flagged at segment 0 below)
             if(idx in skipped) continue
             // 4. Ignored by class: skip before any cache work, a moving viewmodel would be rebuilt on every trace otherwise
-            // Not with a collision filter, it may let an ignored class through
-            if(!settings.shouldRayHitEntity && settings._isClassIgnored(ent.GetClassname())) continue
+            // Not with a hit filter, it may let an ignored class through
+            if(!settings.hitFilter && settings._isClassIgnored(ent.GetClassname())) continue
 
             local BEnt = null
             
@@ -422,7 +422,7 @@ function RayAabbIntersectFast(start, end, bmin, bmax) {
 
 /*
  * TraceSettings verdict for an entity, kept in BEnt for the rest of the trace.
- * Checks the ignore filter, the collision filter, then the ignored classes and models.
+ * Checks the ignore filter, the hit filter, then the ignored classes and models.
  * Neighbor segments' spheres overlap, so the same entity comes up again, and the filters are user callbacks
 */
 function BboxTraceAnalyzer::shouldHitEntityCached(BEnt) {
@@ -431,18 +431,18 @@ function BboxTraceAnalyzer::shouldHitEntityCached(BEnt) {
         return BEnt.cachedShouldHit
     }
     
-    local ent = BEnt.entity.CBaseEntity
+    local ent = BEnt.entity
     BEnt.cachedTraceId = this.traceId
-    
+
     // Settings filters
     // inlined 'ApplyIgnoreFilter'
-    if(settings.shouldIgnoreEntity && settings.shouldIgnoreEntity(ent)) {
+    if(settings.ignoreFilter && settings.ignoreFilter(ent)) {
         BEnt.cachedShouldHit = false
         return false
     }
-    
+
     // inlined 'ApplyCollisionFilter'
-    if(settings.shouldRayHitEntity && settings.shouldRayHitEntity(ent)) { 
+    if(settings.hitFilter && settings.hitFilter(ent)) {
         BEnt.cachedShouldHit = true
         return true
     }

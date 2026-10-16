@@ -35,7 +35,7 @@ function TracePlus::InvalidateEntity(ent) {
 
 IncludeScript("PCapture-LIB/SRC/TracePlus/results")
 IncludeScript("PCapture-LIB/SRC/TracePlus/trace_settings")
-TracePlus.defaultSettings = TracePlus.Settings.new()
+TracePlus.defaultSettings = TracePlus.Settings()
 
 IncludeScript("PCapture-LIB/SRC/TracePlus/cheap_trace")
 IncludeScript("PCapture-LIB/SRC/TracePlus/bboxcast")

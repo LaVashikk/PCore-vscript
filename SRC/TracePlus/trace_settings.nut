@@ -1,200 +1,241 @@
 /*
- * Settings for bbox traces (TracePlus.Bbox, TracePlus.PortalBbox): class and model filters, custom filter
- * functions and analyzer options. Create instances with TracePlus.Settings.new().
+ * Settings for bbox traces (TracePlus.Bbox, TracePlus.PortalBbox), built with chained calls:
+ * TracePlus.Settings().IgnoreClasses("func_").ExceptClasses("func_brush")
+ *
+ * An entity is checked in this order, the first match decides:
+ * 1. The ignore filter returns true: ignored.
+ * 2. The hit filter returns true: hit.
+ * 3. The classname matches IgnoreClasses and not ExceptClasses: ignored.
+ * 4. The model name matches IgnoreModels: ignored.
+ * 5. Otherwise: hit.
+ *
+ * A mask matches every name that contains it. "*" alone ignores all classes, a "*" at the ends of a longer mask is dropped.
+ * All methods but the getters return the settings themselves, so calls chain
 */
 TracePlus["Settings"] <- class {
-    id = null; // todo: dont used!
-    ignoreAllClasses = false; 
-    
-    // Entity classnames to ignore during traces. An entry matches every classname that contains it; "*" ignores all classes.
-    ignoreClasses = ArrayEx("viewmodel", "weapon_", "beam", "light",
+    // Classname masks to ignore during traces
+    ignoredClasses = ArrayEx("viewmodel", "weapon_", "beam", "light",
         "trigger_", "phys_", "env_", "point_", "info_", "vgui_", "logic_",
         "clone", "prop_portal", "portal_base2D", "func_clip", "func_instance",
         "func_portal_detector", "func_noportal_volume", "func_portal_bumper",
         "func_areaportalwindow", "path_track", "npc_bullseye", "move_rope", "keyframe_rope",
         "worldspawn", "soundent", "player_manager", "bodyque", "ai_network", "generic_actor"
     );
-    // Entity classnames that are hit even if they match ignoreClasses; matched the same way.
-    priorityClasses = ArrayEx();
-    // Entity model names to ignore during traces. An entry matches every model name that contains it.
+    // Classname masks that are hit even if they match ignoredClasses: the other side of the same rule
+    exceptedClasses = ArrayEx();
+    // Model name masks to ignore during traces
     ignoredModels = ArrayEx();
+    // "*" is in ignoredClasses, no find over the list needed
+    ignoreAllClasses = false;
     // Undocumented, you normally never need to change it! A trace starting inside one of these is hit right at the start
     // instead of skipping it: a cube stuck in a portal contains the start of the cast that comes out of that portal
     hitInsideClasses = ArrayEx("prop_weighted_cube", "prop_monster_box", "npc_portal_turret_floor", "prop_physics");
 
+    // See SetIgnoreFilter and SetHitFilter
+    ignoreFilter = null;
+    hitFilter = null;
 
-    // A custom function to determine if a ray should hit an entity, see SetCollisionFilter.
-    shouldRayHitEntity = null;
-    // A custom function to determine if an entity should be ignored during a trace, see SetIgnoreFilter.
-    shouldIgnoreEntity = null;
-
-    // classname / model name -> ignored, filled by the analyzer. The lists only change through Set*/Append*, which drop these
+    // classname / model name -> ignored, filled by the analyzer. The lists only change through the methods, which drop these
     classCache = null;
     modelCache = null;
 
     /*
-     * Creates settings with the default lists. Use TracePlus.Settings.new() instead.
+     * Creates settings with the default ignored classes.
     */
     constructor() {
         // Class members are shared by every instance, so each one gets its own lists
-        this.ignoreClasses = this.ignoreClasses.Clone()
-        this.priorityClasses = this.priorityClasses.Clone()
+        this.ignoredClasses = this.ignoredClasses.Clone()
+        this.exceptedClasses = this.exceptedClasses.Clone()
         this.ignoredModels = this.ignoredModels.Clone()
         this.classCache = {}
         this.modelCache = {}
     }
 
-    /*
-     * Creates a new TraceSettings object with default values or from a table of settings.
-     *
-     * Keys: ignoreClasses, priorityClasses, ignoredModels (array or ArrayEx), shouldRayHitEntity, shouldIgnoreEntity
-     * (functions). A given list replaces the default one; to extend the default
-     * ignored classes, use AppendIgnoredClass instead.
-     *
-     * @param {table} settingsTable - A table containing settings to override the defaults. (optional)
-     * @returns {TraceSettings} - A new TraceSettings object.
-    */
-    function new(settingsTable = {}) {
-        local result = TracePlus.Settings()
-        result.id = UniqueString("TracePlus")
-
-        result.SetIgnoredClasses(macros.GetFromTable(settingsTable, "ignoreClasses", TracePlus.Settings.ignoreClasses))
-        result.SetPriorityClasses(macros.GetFromTable(settingsTable, "priorityClasses", TracePlus.Settings.priorityClasses))
-        result.SetIgnoredModels(macros.GetFromTable(settingsTable, "ignoredModels", TracePlus.Settings.ignoredModels))
-        
-        result.SetCollisionFilter(macros.GetFromTable(settingsTable, "shouldRayHitEntity", null))
-        result.SetIgnoreFilter(macros.GetFromTable(settingsTable, "shouldIgnoreEntity", null))
-        
-        return result
-    }
-
 
     /*
-     * Sets the list of entity classnames to ignore during traces.
-     *
-     * @param {array|ArrayEx} ignoreClassesArray - An array or ArrayEx containing entity classnames to ignore.
-     * @returns {TraceSettings} - This settings object, for chaining.
+     * Adds classname masks to ignore. Takes any number of strings, arrays and ArrayEx of strings.
+     * "*" ignores every class, see IgnoreAllClasses.
     */
-    function SetIgnoredClasses(ignoreClassesArray) {
-        if(typeof ignoreClassesArray != "array" && typeof ignoreClassesArray != "ArrayEx") throw("TracePlus.Settings.SetIgnoredClasses: Invalid argument type. Expected an 'array' or 'ArrayEx', but got " + typeof ignoreClassesArray)
-
-        // A copy, so changing the caller's array later can't get past the caches
-        this.ignoreClasses = ArrayEx.FromArray(ignoreClassesArray).Clone()
-        this.ignoreAllClasses = this.ignoreClasses.contains("*")
-        this.classCache = {}
-
-        return this
-    }
-
-    // todo: add helper 'SetIgnoreAll'
-
-    /*
-     * Sets the list of entity classnames to prioritize during traces.
-     *
-     * @param {array|ArrayEx} priorityClassesArray - An array or ArrayEx containing entity classnames to prioritize.
-     * @returns {TraceSettings} - This settings object, for chaining.
-    */
-    function SetPriorityClasses(priorityClassesArray) {
-        if(typeof priorityClassesArray != "array" && typeof priorityClassesArray != "ArrayEx") throw("TracePlus.Settings.SetPriorityClasses: Invalid argument type. Expected an 'array' or 'ArrayEx', but got " + typeof priorityClassesArray)
-
-        this.priorityClasses = ArrayEx.FromArray(priorityClassesArray).Clone()
+    function IgnoreClasses(...) {
+        for(local i = 0; i < vargc; i++)
+            _addMasks(this.ignoredClasses, vargv[i], "IgnoreClasses")
+        this.ignoreAllClasses = this.ignoredClasses.contains("*")
         this.classCache = {}
         return this
     }
 
     /*
-     * Sets the list of entity model names to ignore during traces.
-     *
-     * @param {array|ArrayEx} ignoredModelsArray - An array or ArrayEx containing entity model names to ignore.
-     * @returns {TraceSettings} - This settings object, for chaining.
+     * Adds classname masks to hit even if IgnoreClasses matches them: IgnoreClasses("func_").ExceptClasses("func_brush").
+     * Only works against the ignored classes, an ignored model or the ignore filter still wins.
+     * Takes any number of strings, arrays and ArrayEx of strings.
     */
-    function SetIgnoredModels(ignoredModelsArray) {
-        if(typeof ignoredModelsArray != "array" && typeof ignoredModelsArray != "ArrayEx") throw("TracePlus.Settings.SetIgnoredModels: Invalid argument type. Expected an 'array' or 'ArrayEx', but got " + typeof ignoredModelsArray)
+    function ExceptClasses(...) {
+        for(local i = 0; i < vargc; i++)
+            _addMasks(this.exceptedClasses, vargv[i], "ExceptClasses")
+        this.classCache = {}
+        return this
+    }
 
-        this.ignoredModels = ArrayEx.FromArray(ignoredModelsArray).Clone()
+    /*
+     * Ignores every class, so only ExceptClasses (and the hit filter) let entities through.
+    */
+    function IgnoreAllClasses() { // todo: maybe make it toggable?
+        return this.IgnoreClasses("*")
+    }
+
+    /*
+     * Removes all ignored classes, the defaults too (triggers, env_, info_, prop_portal...).
+     * To hit just a few of them, ExceptClasses is usually what you want.
+    */
+    function ClearIgnoredClasses() {
+        this.ignoredClasses = ArrayEx()
+        this.ignoreAllClasses = false
+        this.classCache = {}
+        return this
+    }
+
+    /*
+     * Removes all excepted classes.
+    */
+    function ClearExceptedClasses() {
+        this.exceptedClasses = ArrayEx()
+        this.classCache = {}
+        return this
+    }
+
+    /*
+     * Adds model name masks to ignore. Takes any number of strings, arrays and ArrayEx of strings.
+    */
+    function IgnoreModels(...) {
+        for(local i = 0; i < vargc; i++)
+            _addMasks(this.ignoredModels, vargv[i], "IgnoreModels")
         this.modelCache = {}
         return this
     }
 
     /*
-     * Appends an entity classname to the list of ignored classes.
-     *
-     * @param {string} className - The classname to append.
-     * @returns {TraceSettings} - This settings object, for chaining.
+     * Removes all ignored models.
     */
-    function AppendIgnoredClass(className) {
-        if(typeof className != "string") throw("TracePlus.Settings.AppendIgnoredClass: Invalid argument type. Expected a 'string', but got " + typeof className)
-
-        this.ignoreClasses.append(className)
-        if(className == "*") this.ignoreAllClasses = true // todo: this can be invalidated if something modify ignoreClasses not from methods
-        this.classCache = {}
-
-        return this
-    }
-
-    /*
-     * Appends an entity classname to the list of priority classes.
-     *
-     * @param {string} className - The classname to append.
-     * @returns {TraceSettings} - This settings object, for chaining.
-    */
-    function AppendPriorityClasses(className) {
-        if(typeof className != "string") throw("TracePlus.Settings.AppendPriorityClasses: Invalid argument type. Expected a 'string', but got " + typeof className)
-
-        this.priorityClasses.append(className)
-        this.classCache = {}
-        return this
-    }
-
-    /*
-     * Appends an entity model name to the list of ignored models.
-     *
-     * @param {string} modelName - The model name to append.
-     * @returns {TraceSettings} - This settings object, for chaining.
-    */
-    function AppendIgnoredModel(modelName) {
-        if(typeof modelName != "string") throw("TracePlus.Settings.AppendIgnoredModel: Invalid argument type. Expected a 'string', but got " + typeof modelName)
-
-        this.ignoredModels.append(modelName)
+    function ClearIgnoredModels() {
+        this.ignoredModels = ArrayEx()
         this.modelCache = {}
         return this
     }
 
     /*
-     * Gets a copy of the list of entity classnames to ignore during traces. Change the list with Set/Append.
+     * Sets the ignore filter. It is called with the candidate entity (pcapEntity): true ignores it, whatever the rest
+     * of the settings says. null removes the filter.
+    */
+    function SetIgnoreFilter(filterFunction) {
+        this.ignoreFilter = filterFunction
+        return this
+    }
+
+    /*
+     * Sets the hit filter. It is called with the candidate entity (pcapEntity): true hits it even if the ignored
+     * classes or models match it, false leaves it to them. The ignore filter goes first. null removes the filter.
+     * With a hit filter, ignored classes can no longer be skipped early, so the trace costs more.
+    */
+    function SetHitFilter(filterFunction) {
+        this.hitFilter = filterFunction
+        return this
+    }
+
+    /*
+     * Gets a copy of the ignored classname masks.
      *
-     * @returns {ArrayEx} - A copy of the ignored classnames.
+     * @returns {ArrayEx} - A copy of the list.
     */
     function GetIgnoredClasses() {
-        return this.ignoreClasses.Clone()
+        return this.ignoredClasses.Clone()
     }
 
     /*
-     * Gets a copy of the list of entity classnames to prioritize during traces. Change the list with Set/Append.
+     * Gets a copy of the excepted classname masks.
      *
-     * @returns {ArrayEx} - A copy of the priority classnames.
+     * @returns {ArrayEx} - A copy of the list.
     */
-    function GetPriorityClasses() {
-        return this.priorityClasses.Clone()
+    function GetExceptedClasses() {
+        return this.exceptedClasses.Clone()
     }
 
     /*
-     * Gets a copy of the list of entity model names to ignore during traces. Change the list with Set/Append.
+     * Gets a copy of the ignored model name masks.
      *
-     * @returns {ArrayEx} - A copy of the ignored model names.
+     * @returns {ArrayEx} - A copy of the list.
     */
     function GetIgnoredModels() {
         return this.ignoredModels.Clone()
     }
 
     /*
-     * Checks a classname against the class lists: it is ignored if it matches ignoreClasses (or "*" is there)
-     * and no priority class. Cached per classname until the class lists change.
+     * Gets the ignore filter function, or null.
+    */
+    function GetIgnoreFilter() {
+        return this.ignoreFilter
+    }
+
+    /*
+     * Gets the hit filter function, or null.
+    */
+    function GetHitFilter() {
+        return this.hitFilter
+    }
+
+    /*
+     * Creates a copy of these settings. The lists are copied, the filter functions are shared.
+    */
+    function Clone() {
+        return clone this
+    }
+
+    function _cloned(original) {
+        this.ignoredClasses = original.ignoredClasses.Clone()
+        this.exceptedClasses = original.exceptedClasses.Clone()
+        this.ignoredModels = original.ignoredModels.Clone()
+        this.classCache = {}
+        this.modelCache = {}
+    }
+
+    // Appends one argument of the mask methods: a string, or an array/ArrayEx of them
+    function _addMasks(list, arg, caller) {
+        local type = typeof arg
+        if(type == "string") {
+            list.append(_normalizeMask(arg, caller))
+            return
+        }
+        if(type != "array" && type != "ArrayEx") throw("TracePlus.Settings." + caller + ": expected strings, arrays or ArrayEx, but got " + type)
+
+        foreach(mask in (type == "ArrayEx" ? arg.arr : arg)) {
+            if(typeof mask != "string") throw("TracePlus.Settings." + caller + ": expected string masks, but got " + typeof mask)
+            list.append(_normalizeMask(mask, caller))
+        }
+    }
+
+    // Masks are substrings, so "prop_*" would never match anything: the stars at the ends go. "*" alone stays, it's the ignore-all marker
+    function _normalizeMask(mask, caller) {
+        if(mask.len() < 2) return mask
+
+        local s = 0
+        local e = mask.len()
+        while(s < e && mask[s] == '*') s++
+        while(e > s && mask[e - 1] == '*') e--
+        
+        local trimmed = mask.slice(s, e)
+        if(trimmed.find("*") != null) throw("TracePlus.Settings." + caller + ": \"*\" only works at the ends of a mask, got \"" + mask + "\"")
+        if(trimmed == "") return "*"
+
+        return trimmed
+    }
+
+    /*
+     * Checks a classname against the class lists: it is ignored if it matches ignoredClasses (or "*" is there)
+     * and no excepted class. Cached per classname until the class lists change.
     */
     function _isClassIgnored(classname) {
         if(classname in this.classCache) return this.classCache[classname]
 
-        local ignored = (this.ignoreAllClasses || _matchesAny(this.ignoreClasses, classname)) && !_matchesAny(this.priorityClasses, classname)
+        local ignored = (this.ignoreAllClasses || _matchesAny(this.ignoredClasses, classname)) && !_matchesAny(this.exceptedClasses, classname)
         this.classCache[classname] <- ignored
         return ignored
     }
@@ -222,60 +263,6 @@ TracePlus["Settings"] <- class {
         foreach(mask in list.arr)
             if(name.find(mask) != null) return true
         return false
-    }
-
-    /*
-     * Sets a custom function to determine if a ray should hit an entity.
-     * It is called with the candidate entity (a CBaseEntity); returning true lets the ray hit it
-     * regardless of the ignored classes and models. The ignore filter is checked first.
-     *
-     * @param {function|null} filterFunction - The filter function to set, or null to remove it.
-     * @returns {TraceSettings} - This settings object, for chaining.
-    */
-    function SetCollisionFilter(filterFunction) { // aka. SetHitFilter
-        this.shouldRayHitEntity = filterFunction
-        return this
-    }
-
-    /*
-     * Sets a custom function to determine if an entity should be ignored during a trace.
-     * It is called with the candidate entity (a CBaseEntity); returning true makes the trace ignore it.
-     *
-     * @param {function|null} filterFunction - The filter function to set, or null to remove it.
-     * @returns {TraceSettings} - This settings object, for chaining.
-    */
-    function SetIgnoreFilter(filterFunction) {
-        this.shouldIgnoreEntity = filterFunction
-        return this
-    }
-
-    /*
-     * Gets the custom collision filter function. 
-    */
-    function GetCollisionFilter() {
-        return this.shouldRayHitEntity
-    }
-
-    /*
-     * Gets the custom ignore filter function. 
-    */
-    function GetIgnoreFilter() {
-        return this.shouldIgnoreEntity
-    }
-
-    /*
-     * Creates a copy of these settings. The class and model lists are copied, the filter functions are shared.
-    */
-    function Clone() {
-        return clone this
-    }
-
-    function _cloned(original) {
-        this.ignoreClasses = original.ignoreClasses.Clone()
-        this.priorityClasses = original.priorityClasses.Clone()
-        this.ignoredModels = original.ignoredModels.Clone()
-        this.classCache = {}
-        this.modelCache = {}
     }
 
     function _typeof() return "TraceSettings"
