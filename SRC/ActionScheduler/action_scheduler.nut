@@ -4,14 +4,18 @@
  * @param {string|any} eventName - The name of the event to add the action to. If the event does not exist, it is created.
  * @param {string|function|generator} action - The action to execute when the scheduled time arrives: a function, a generator or a string of VScript code.
  * @param {number} timeDelay - The delay in seconds before executing the action.
- * @param {array|null} args - An optional array of arguments to pass to the action function.
- * @param {object} scope - The object used as `this` when the action runs (default is the root table).
+ * @param {iter|null} args - Optional arguments to pass to the action function, copied.
+ * @param {object} scope - The object used as `this` when the action runs. (optional, default is the root table)
 */
-ScheduleEvent["Add"] <- function(eventName, action, timeDelay, args = null, scope = this) {
+ScheduleEvent["Add"] <- function(eventName, action, timeDelay, args = null, scope = null) {
     if (typeof action != "string" && typeof action != "function" && typeof action != "native function" && typeof action != "generator") throw("ScheduleEvent.Add: 'action' must be a function or a string, but got " + typeof action);
     if (typeof timeDelay != "integer" && typeof timeDelay != "float") throw("ScheduleEvent.Add: 'timeDelay' must be a number, but got " + typeof timeDelay);
     local argsType = typeof args;
     if(args && argsType != "array" && argsType != "ArrayEx" && argsType != "List") throw("ScheduleEvent.Add: 'args' must be an array, List, or null, but got " + typeof args)
+    // ScheduleAction takes a native array only
+    if(argsType == "ArrayEx") args = clone args.arr
+    else if(argsType == "List") args = args.toarray().arr
+    if(scope == null) scope = getroottable()
 
     if ( !(eventName in ScheduleEvent.eventsList) ) {
         ScheduleEvent.eventsList[eventName] <- List()
@@ -37,17 +41,19 @@ ScheduleEvent["Add"] <- function(eventName, action, timeDelay, args = null, scop
  * @param {string|function|generator} action - The action to execute at each interval.
  * @param {number} interval - The time interval in seconds between executions of the action. Must be greater than 0.
  * @param {number} initialDelay - The initial delay in seconds before the first execution of the action (default is 0).
- * @param {array|null} args - An optional array of arguments to pass to the action function.
+ * @param {iter|null} args - Optional arguments to pass to the action function, copied.
  * @param {object} scope - The object used as `this` when the action runs (default is the root table).
 */
-ScheduleEvent["AddInterval"] <- function(eventName, action, interval, initialDelay = 0, args = null, scope = this) {
+ScheduleEvent["AddInterval"] <- function(eventName, action, interval, initialDelay = 0, args = null, scope = null) {
     if (typeof action != "string" && typeof action != "function" && typeof action != "native function" && typeof action != "generator") throw("ScheduleEvent.AddInterval: 'action' must be a function or a string, but got " + typeof action);
     if (typeof interval != "integer" && typeof interval != "float") throw("ScheduleEvent.AddInterval: 'interval' must be a number, but got " + typeof interval);
     if (interval <= 0) throw("ScheduleEvent.AddInterval: 'interval' must be a positive number, but got " + interval);
     if (typeof initialDelay != "integer" && typeof initialDelay != "float") throw("ScheduleEvent.AddInterval: 'initialDelay' must be a number, but got " + typeof initialDelay);
     local argsType = typeof args;
     if(args && argsType != "array" && argsType != "ArrayEx" && argsType != "List") throw("ScheduleEvent.AddInterval: 'args' must be an array, List, or null, but got " + typeof args)
-
+    if(argsType == "ArrayEx") args = clone args.arr
+    else if(argsType == "List") args = args.toarray().arr
+    if(scope == null) scope = getroottable()
 
     ScheduleEvent.Add(eventName, action, initialDelay, args, scope)
     ScheduleEvent.Add(eventName, ScheduleEvent.AddInterval, initialDelay + interval, [eventName, action, interval, 0, args, scope], scope)
@@ -56,11 +62,11 @@ ScheduleEvent["AddInterval"] <- function(eventName, action, interval, initialDel
 /*
  * Adds multiple actions to a scheduled event.
  *
- * An existing event gets the actions appended and is re-sorted by execution time. For a new event, the container
- * is sorted in place (unless `noSort`) and becomes the event's queue: a List is used as is, other containers are copied into a List.
+ * An existing event gets the actions appended and is re-sorted by execution time. A new event gets a copy of
+ * the container as its queue, sorted unless `noSort`.
  *
  * @param {string|any} eventName - The name of the event to add the actions to. If the event does not exist, it is created.
- * @param {array|ArrayEx|List} actions - The `ScheduleAction` objects to add to the event.
+ * @param {iter} actions - The `ScheduleAction` objects to add to the event.
  * @param {boolean} noSort - Skip sorting when the event is new; the actions must already be sorted by execution time (default is false).
 */
 ScheduleEvent["AddActions"] <- function(eventName, actions, noSort = false) { 
@@ -79,13 +85,14 @@ ScheduleEvent["AddActions"] <- function(eventName, actions, noSort = false) {
         return 
     } 
 
-    if(!noSort) actions.sort()
-
-    if(typeof actions == "List") {
-        ScheduleEvent.eventsList[eventName] <- actions
-    } else {
-        ScheduleEvent.eventsList[eventName] <- List.FromArray(actions)
+    // A native array sorts natively, List.sort is a Squirrel merge sort (1.2-1.5x slower, sq 2.2.5)
+    // FromArray copies, so the caller's container never becomes the live queue
+    local arr = actionsType == "List" ? actions.toarray().arr : actionsType == "ArrayEx" ? actions.arr : actions
+    if(!noSort) {
+        arr = clone arr
+        arr.sort()
     }
+    ScheduleEvent.eventsList[eventName] <- List.FromArray(arr)
 
     if(developer() > 0) dev.trace("Created new Event \"{}\" with {} actions.", eventName, actions.len())
 }
@@ -104,7 +111,7 @@ ScheduleEvent["Cancel"] <- function(eventName, delay = 0) {
     if(!(eventName in ScheduleEvent.eventsList))
         throw("There is no event named " + eventName)
     if(delay > 0)
-        return ScheduleEvent.Add("global", format("ScheduleEvent.Cancel(\"%s\")", eventName), delay)
+        return ScheduleEvent.Add("global", ScheduleEvent.TryCancel, delay, [eventName])
     
     ScheduleEvent.eventsList.rawdelete(eventName)
         
