@@ -1,14 +1,10 @@
 /*
- * ArrayEx: a wrapper around a native array with chainable methods and a table cache for contains().
+ * ArrayEx: a wrapper around a native array with chainable methods.
 */
 ::ArrayEx <- class {
     // The internal array. 
     arr = null
-    
-    // Cache for contains(): the tostring() of every non-null element as a key (see totable).
-    table = null;
-    tableIsValid = false;
-    
+
     /*
      * Creates an ArrayEx that holds the given values.
      *
@@ -16,8 +12,7 @@
     */
     constructor(...) {
         this.arr = array(vargc);
-        this.table = {};
-        
+
         for(local i = 0; i < vargc; i++) {
             this.arr[i] = vargv[i]
         }
@@ -61,7 +56,6 @@
      * @returns {ArrayEx} - The ArrayEx instance for chaining.
     */
     function append(val) {
-        this._pushToTable(val)
         arr.append(val);
         return this
     }
@@ -76,19 +70,16 @@
         foreach(idx, value in arr) {
             arr[idx] = func(value, idx)
         }
-        this.totable(true)
         return this
     }
 
     /*
-     * Clear the array and table.
+     * Clear the array.
      * 
      * @returns {ArrayEx} - The ArrayEx instance for chaining.
     */
     function clear() {
         this.arr.clear()
-        this.table.clear()
-        this.tableIsValid = false
         return this
     }
 
@@ -104,8 +95,6 @@
         }
 
         arr.extend(other);
-        this.totable(true)
-         
         return this
     }
 
@@ -125,14 +114,15 @@
     }
 
     /*
-     * Check if the array contains a value.
+     * Check if the array contains a value, compared with ==. A linear search: for many lookups, use a table.
      * 
      * @param {any} match - The value to find.
      * @returns {boolean} - Whether the value is found.
     */
-    function contains(match) { 
-        if(!this.tableIsValid) this.totable()
-        return match.tostring() in this.table
+    function contains(match) {
+        foreach(val in this.arr)
+            if(val == match) return true
+        return false
     }
 
     /*
@@ -166,7 +156,6 @@
      * @returns {ArrayEx} - The ArrayEx instance for chaining.
     */
     function insert(idx, val) {
-        this._pushToTable(val)
         arr.insert(idx, val)
         return this
     }
@@ -211,19 +200,27 @@
     }
 
     /*
-     * Return a new array without duplicates, keeping the first occurrence. Values are compared by their tostring().
+     * Return a new array without duplicates, keeping the first occurrence. Values are compared as table keys:
+     * numbers and strings by value, instances, tables and arrays by identity.
      * 
      * @returns {ArrayEx} - The new array with unique elements.
     */
     function unique() {
         local seen = {}
+        local seenNull = false
         local result = ArrayEx()
-        
+
         foreach(value in this.arr) {
-            value = value.tostring()
-            if(value in seen) continue
-            seen[value] <- true    
-            result.append(value)
+            // null can't be a table key
+            if(value == null) {
+                if(seenNull) continue
+                seenNull = true
+            }
+            else {
+                if(value in seen) continue
+                seen[value] <- true
+            }
+            result.arr.append(value)
         }
 
         return result
@@ -235,9 +232,7 @@
      * @returns {any} - The popped value.
     */
     function pop() {
-        local pop = arr.pop()
-        this._deleteFromTable(pop)
-        return pop
+        return arr.pop()
     }
 
     /*
@@ -258,10 +253,7 @@
      * @returns {any} - The value of the removed element.
     */
     function remove(idx) {
-        local value = arr[idx]
-        this._deleteFromTable(arr[idx])
-        arr.remove(idx);
-        return value
+        return arr.remove(idx)
     }
 
     /*
@@ -272,7 +264,6 @@
     */
     function resize(size, fill = null) {
         arr.resize(size, fill);
-        this.totable(true)
         return this
     }
 
@@ -347,20 +338,17 @@
     }
 
     /*
-     * Convert the array to a table.
+     * Convert the array to a new table with the elements as keys (null values). null elements are skipped.
      * 
-     * @param {boolean} reacreate - Whether to recreate the table.
-     * @returns {table} - The table representation.
+     * @returns {table} - The table.
     */
-    function totable(reacreate = false) {
-        if(this.table.len() > 0 && !reacreate) return this.table
-
-        tableIsValid = true
-        this.table.clear()
+    function totable() {
+        local table = {}
         foreach(element in arr) {
-            if(element != null) this.table[element.tostring()] <- null
+            // null can't be the key
+            if(element != null) table[element] <- null
         }
-        return this.table
+        return table
     }
 
     /*
@@ -374,26 +362,6 @@
             list.append(value)
         }
         return list
-    }
-
-    /*
-     * Delete a value from the internal table.
-     * 
-     * @param {any} val - The value to delete.
-    */
-    function _deleteFromTable(val) {
-        if(val in this.table)
-            this.table.rawdelete(val)
-    }
-
-    /*
-     * Add a value to the internal table.
-     * 
-     * @param {any} val - The value to add.
-    */
-    function _pushToTable(val) {
-        if(this.table.len() != 0)
-            this.table[val.tostring()] <- null
     }
 
     /*
@@ -415,7 +383,8 @@
     function _typeof () return "ArrayEx";
     function _get(idx) return arr[idx];
     function _set(idx, val) return arr[idx] = val;
-    function _cloned() return this.Clone()
+    // Squirrel calls it on the new instance, which shares `arr` with the original until here
+    function _cloned(original) this.arr = clone original.arr
     function _nexti(previdx) {
         if(this.arr.len() == 0) return null
         if (previdx == null) return 0;
