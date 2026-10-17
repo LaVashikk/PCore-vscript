@@ -222,13 +222,14 @@ macros["GetDist"] <- function(vec1, vec2) {
 */
 macros["StrToVec"] <- function(str, sep = " ") {
     local str_arr = split(str, sep)
-    if (str_arr.len() != 3) throw(format("macros.StrToVec: Input string '%s' is malformed. Expected 3 components separated by '%s', but got %d.", str, sep, str_arr.len()));
+    // ::format: a bare format resolves to macros.format here, which knows no %s
+    if (str_arr.len() != 3) throw(::format("macros.StrToVec: Input string '%s' is malformed. Expected 3 components separated by '%s', but got %d.", str, sep, str_arr.len()));
     try {
         local vec = Vector(str_arr[0].tofloat(), str_arr[1].tofloat(), str_arr[2].tofloat())
         return vec
     }
     catch(ex) {
-        throw(format("macros.StrToVec: Failed to convert components of string '%s' to numbers. Details: %s", str, ex));
+        throw(::format("macros.StrToVec: Failed to convert components of string '%s' to numbers. Details: %s", str, ex));
     }
 
 }
@@ -305,6 +306,9 @@ macros["IsEqual"] <- function(val1, val2) {
         case "Matrix": 
         case "pcapEntity": 
             return val1.IsEqual(val2)  
+        // strings, bools, null, tables, arrays
+        default:
+            return val1 == val2
     }
 }
 
@@ -345,6 +349,9 @@ macros["DeepCopy"] <- function(container, _ = null) {
  * @returns {string} - The prefix of the entity name ("door-" for "door-1"), or the original name if no "-" is found.
 */
 macros["GetPrefix"] <- function(name) {
+    // No "-": the whole name, the slice below would cut it all
+    if(name.find("-") == null)
+        return name
     local parts = split(name, "-")
     if(parts.len() == 0)
         return name
@@ -362,6 +369,8 @@ macros["GetPrefix"] <- function(name) {
  * @returns {string} - The postfix of the entity name ("-1" for "door-1"), or the original name if no "-" is found.
 */
 macros["GetPostfix"] <- function(name) {
+    if(name.find("-") == null)
+        return name
     local parts = split(name, "-")
     if(parts.len() == 0)
         return name
