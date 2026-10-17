@@ -17,7 +17,7 @@ const PLAYER_DEATH_MARKER = -999
  * Tracks players joining the game and initializes them.
  *
  * For each player without "Eye" user data (not tracked yet): attaches eye control, initializes the portal pair
- * whose ID is the player's index in AllPlayers, appends the player to AllPlayers and calls OnPlayerJoined.
+ * whose ID is the player's index in AllPlayers, appends the player to AllPlayers and runs the join hooks.
 */
 ::TrackPlayerJoins <- function() {
     for(local player; player = entLib.FindByClassname("player", player);) {
@@ -27,38 +27,38 @@ const PLAYER_DEATH_MARKER = -999
         InitPortalPair(AllPlayers.len())
 
         AllPlayers.append(player)
-        OnPlayerJoined(player)
+        ScriptEvents.Emit("event_player_joined", player)
     }
 }
 
 /*
  * Handles player events in MP: leaving, death and respawn.
  *
- * A tracked player that is no longer valid gets OnPlayerLeft and is removed from AllPlayers. A player whose
- * health dropped to 0 or below gets OnPlayerDeath and a respawn monitor (_monitorRespawn), and its health is
- * set to PLAYER_DEATH_MARKER so that each death is handled once.
+ * A tracked player that is no longer valid is removed from AllPlayers and runs the leave hooks. A player whose
+ * health dropped to 0 or below gets PLAYER_DEATH_MARKER as health (so each death is handled once), a respawn
+ * monitor (_monitorRespawn), and runs the death hooks.
+ * The state is updated before the hooks run: a hook that throws can't make the same event fire again.
 */
 ::HandlePlayerEventsMP <- function() {
-    local playersToRemove = []
-    foreach(idx, player in AllPlayers){
+    local left = [] // portal 2 is shit btw, it works so randomly!!! but probably P2MM fixed that so its should work
+    local died = []
+    for(local i = AllPlayers.len() - 1; i >= 0; i--) {
+        local player = AllPlayers[i]
         if(!player.IsValid()) {
-            OnPlayerLeft(player)
-            playersToRemove.append(idx)
+            AllPlayers.remove(i)
+            left.append(player)
             continue
         }
 
         if(player.GetHealth() > 0 || player.GetHealth() == PLAYER_DEATH_MARKER) continue
 
-        OnPlayerDeath(player)
-        ScheduleEvent.Add("global", _monitorRespawn, 0.3, [player])
         player.SetHealth(PLAYER_DEATH_MARKER)
+        ScheduleEvent.Add("global", _monitorRespawn, 0.3, [player])
+        died.append(player)
     }
 
-    if(playersToRemove.len() > 0) {
-        for(local i = playersToRemove.len() - 1; i >= 0; i--) {
-            AllPlayers.remove(playersToRemove[i])
-        }
-    }
+    foreach(player in left) ScriptEvents.Emit("event_player_left", player)
+    foreach(player in died) ScriptEvents.Emit("event_player_death", player)
 }
 
 
@@ -77,18 +77,18 @@ const PLAYER_DEATH_MARKER = -999
 }
 
 /*
- * Handles player death in SP: calls OnPlayerDeath once when the player's health drops to 0 or below,
- * then sets the health to PLAYER_DEATH_MARKER.
+ * Handles player death in SP: once the player's health drops to 0 or below, sets it to PLAYER_DEATH_MARKER
+ * and runs the death hooks, once per death.
 */
 ::HandlePlayerEventsSP <- function() {
     local h = AllPlayers[0].GetHealth()
     if(h > 0 || h == PLAYER_DEATH_MARKER) return
-    OnPlayerDeath(AllPlayers[0])
     AllPlayers[0].SetHealth(PLAYER_DEATH_MARKER)
+    ScriptEvents.Emit("event_player_death", AllPlayers[0])
 }
 
 /*
- * Waits until a dead player respawns, then calls OnPlayerRespawn. Ends silently if the player leaves.
+ * Waits until a dead player respawns, then runs the respawn hooks. Ends silently if the player leaves.
  *
  * @param {pcapEntity} player - The dead player.
 */
@@ -98,7 +98,7 @@ function _monitorRespawn(player) {
         yield 0.3
     }
     if(player.IsValid())
-        OnPlayerRespawn(player)
+        ScriptEvents.Emit("event_player_respawn", player)
 }
 
 
@@ -132,15 +132,41 @@ function AttachEyeControl(player) {
 
 
 /*
- * Player hooks, empty by default. Each gets the player as a pcapEntity. Define your own versions
- * after the library is loaded: loading it replaces earlier definitions.
+ * Player hooks: any number of functions per event, each gets the player (pcapEntity).
+ * They are ScriptEvents subscriptions underneath, so they run in the order they were added and an error in one
+ * stops the rest for that event.
  *
- * OnPlayerJoined - The player was added to AllPlayers.
- * OnPlayerLeft - MP only. The tracked player is no longer valid.
- * OnPlayerDeath - The player's health dropped to 0 or below. Called once per death.
- * OnPlayerRespawn - MP only. The dead player's health is above 0 again.
+ * @param {function} action - Called with the player.
+ * @param {object} scope - `this` for the action. (optional, default is the root table)
+ * @returns {integer} - The hook id, for RemovePlayerHook.
 */
-function OnPlayerJoined(player) {}
-function OnPlayerLeft(player) {}
-function OnPlayerDeath(player) {}
-function OnPlayerRespawn(player) {}
+
+// The player was added to AllPlayers
+::AddPlayerJoinHook <- function(action, scope = null) {
+    return ScriptEvents.On("event_player_joined", action, scope)
+}
+
+// MP only: the tracked player is no longer valid, already removed from AllPlayers
+::AddPlayerLeaveHook <- function(action, scope = null) {
+    return ScriptEvents.On("event_player_left", action, scope)
+}
+
+// The player's health dropped to 0 or below. Runs once per death
+::AddPlayerDeathHook <- function(action, scope = null) {
+    return ScriptEvents.On("event_player_death", action, scope)
+}
+
+// MP only: the dead player's health is above 0 again
+::AddPlayerRespawnHook <- function(action, scope = null) {
+    return ScriptEvents.On("event_player_respawn", action, scope)
+}
+
+/*
+ * Removes a player hook.
+ *
+ * @param {integer} id - The id returned by one of the Add*Hook functions.
+ * @returns {boolean} - True if it was there.
+*/
+::RemovePlayerHook <- function(id) {
+    return ScriptEvents.Off(id)
+}
