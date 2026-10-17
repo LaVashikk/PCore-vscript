@@ -147,38 +147,20 @@ macros["MaskSearch"] <- function(iter, match) {
  * @throws - If the number of placeholders differs from the number of arguments.
 */
 macros["format"] <- function(msg, ...) {
-    local subst_count = 0;
-    for (local i = 0; i < msg.len() - 1; i++) {
-        if (msg.slice(i, i+2) == "{}") {
-            subst_count++; 
-        }
+    // One pass over the "{}"s. split(msg, "{}") split on every brace, so a lone { or } vanished
+    local result = ""
+    local argIdx = 0
+    local start = 0
+    for(local i = msg.find("{}"); i != null; i = msg.find("{}", start)) {
+        if(argIdx >= vargc) break
+        result += msg.slice(start, i) + vargv[argIdx]
+        argIdx++
+        start = i + 2
     }
 
-    if(subst_count != vargc)
+    if(argIdx != vargc || msg.find("{}", start) != null)
         throw("Discrepancy between the number of arguments and substitutions")
-
-    local args = array(vargc)
-    for(local i = 0; i< vargc; i++) {
-        args[i] = vargv[i]
-    }
-
-    if (msg.slice(0, 2) == "{}") {
-        msg = args[0] + msg.slice(2); 
-        args.remove(0); 
-    }
-
-    local parts = split(msg, "{}");
-    local result = "";
-
-    for (local i = 0; i < parts.len(); i++) {
-        result += parts[i];
-        if (i < args.len()) {
-            local txt = args[i]
-            result += ("" + txt);
-        }
-    }
-
-    return result
+    return result + msg.slice(start)
 }
 
 /*
