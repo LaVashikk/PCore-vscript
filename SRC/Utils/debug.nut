@@ -175,12 +175,11 @@
     },
 
     _getInfo = function() {
-        local last_info
-        for(local i = 0; getstackinfos(i); i++)
-            last_info = i 
-        local info = getstackinfos(last_info)
-        
-        local funcName = getstackinfos(last_info).func
+        // 1 is _getInfo, 2 is dev.warning/dev.error, 3 called it. The last level was the script's entry point
+        local info = getstackinfos(3)
+        if(!info) info = getstackinfos(2)
+
+        local funcName = info.func
         if (funcName == "main" || funcName == "unknown")
             funcName = "file " + info.src
             
