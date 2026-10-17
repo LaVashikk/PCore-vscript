@@ -96,7 +96,7 @@ math["Matrix"] <- class {
         if (det == 0) {
             throw "Matrix is singular (determinant is zero)"
         }
-        local invDet = 1 / det;
+        local invDet = 1.0 / det;
         return math.Matrix(
             (this.e * this.k - this.f * this.h) * invDet,
             (this.c * this.h - this.b * this.k) * invDet,
@@ -200,40 +200,18 @@ math["Matrix"] <- class {
     }
 
     /*
-     * Checks if two matrices are equal based on their components and sum.
+     * Checks if two matrices are equal component by component, within 0.0001.
      *
      * @param {Matrix} other - The other matrix to compare.
      * @returns {boolean} - True if the matrices are equal, false otherwise.
     */
     function IsEqual(other) {
-        return this.cmp(other) == 0
+        if (typeof other != "Matrix") throw "Matrix.IsEqual: cannot compare a matrix with " + typeof other
+        local eps = 0.0001
+        return fabs(a - other.a) < eps && fabs(b - other.b) < eps && fabs(c - other.c) < eps &&
+            fabs(d - other.d) < eps && fabs(e - other.e) < eps && fabs(f - other.f) < eps &&
+            fabs(g - other.g) < eps && fabs(h - other.h) < eps && fabs(k - other.k) < eps
     }
-
-    /*
-     * Compares two matrices based on the sum of their components.
-     *
-     * @param {Matrix} other - The other matrix to compare.
-     * @returns {number} - 1 if this matrix's sum is greater, -1 if less, 0 if equal.
-     * @throws - If `other` is not a Matrix.
-    */
-    function cmp(other) {
-        if (typeof other != "Matrix") {
-            throw "Cannot compare matrix with non-matrix type";
-        }
-
-        local thisSum = a + b - c + d + e + f - g + h - k;
-        local otherSum = other.a + other.b - other.c + other.d + other.e + other.f - other.g + other.h - other.k;
-
-        if (thisSum > otherSum) {
-            return 1;
-        } else if (thisSum < otherSum) {
-            return -1;
-        } else {
-            return 0;
-        }
-    }
-
-    function _cmp(other) return this.cmp(other)
 
     function _tostring() {
         return "Matrix: {" + a + ", " + b + ", " + c + "\n\t " + d + ", " + e + ", " + f + "\n\t " + g + ", " + h + ", " + k + "}"

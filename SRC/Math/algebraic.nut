@@ -111,5 +111,5 @@ math["RemapVal"] <- function( value, A, B, C, D )
             return D;
         return C;
     };
-    return C + (D - C) * (value - A) / (B - A);
+    return C + (D - C) * (value - A).tofloat() / (B - A);
 }   

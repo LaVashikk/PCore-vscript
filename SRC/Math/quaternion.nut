@@ -27,24 +27,24 @@ math["Quaternion"] <- class {
     */
     function fromEuler(angles) {
         // Convert angles to radians
-        local pitch = angles.z * 0.5 / 180 * PI
+        local roll = angles.z * 0.5 / 180 * PI
         local yaw = angles.y * 0.5 / 180 * PI
-        local roll = angles.x * 0.5 / 180 * PI
+        local pitch = angles.x * 0.5 / 180 * PI
 
         // Calculate sine and cosine values
-        local sRoll = sin(roll);
-        local cRoll = cos(roll);
         local sPitch = sin(pitch);
         local cPitch = cos(pitch);
+        local sRoll = sin(roll);
+        local cRoll = cos(roll);
         local sYaw = sin(yaw);
         local cYaw = cos(yaw);
 
         // Calculate quaternion components
         return math.Quaternion(
-            cYaw * cRoll * sPitch - sYaw * sRoll * cPitch,
-            cYaw * sRoll * cPitch + sYaw * cRoll * sPitch,
-            sYaw * cRoll * cPitch - cYaw * sRoll * sPitch,
-            cYaw * cRoll * cPitch + sYaw * sRoll * sPitch
+            cYaw * cPitch * sRoll - sYaw * sPitch * cRoll,
+            cYaw * sPitch * cRoll + sYaw * cPitch * sRoll,
+            sYaw * cPitch * cRoll - cYaw * sPitch * sRoll,
+            cYaw * cPitch * cRoll + sYaw * sPitch * sRoll
         )
     }
 
@@ -257,39 +257,19 @@ math["Quaternion"] <- class {
     }
 
     /* 
-     * Checks if two quaternions are equal based on their components and length.
+     * Checks if two quaternions are equal component by component, within 0.0001.
+     * q and -q are the same rotation, so they are equal too.
      *
      * @param {Quaternion} other - The other quaternion to compare.
      * @returns {boolean} - True if the quaternions are equal, false otherwise.
     */
     function IsEqual(other) {
-        return this.cmp(other) == 0
+        if (typeof other != "Quaternion") throw "Quaternion.IsEqual: cannot compare a quaternion with " + typeof other
+        local eps = 0.0001
+        if (fabs(x - other.x) < eps && fabs(y - other.y) < eps && fabs(z - other.z) < eps && fabs(w - other.w) < eps)
+            return true
+        return fabs(x + other.x) < eps && fabs(y + other.y) < eps && fabs(z + other.z) < eps && fabs(w + other.w) < eps
     }
-
-    /*
-     * Compares two quaternions based on their magnitudes.
-     *
-     * @param {Quaternion} other - The other quaternion to compare.
-     * @returns {number} - 1 if this quaternion's magnitude is greater, -1 if less, 0 if equal.
-    */
-    function cmp(other) {
-        if (typeof other != "Quaternion") {
-            throw "Cannot compare quaternion with non-quaternion type";
-        }
-    
-        local thisMagnitude = math.round(this.length(), 10000);
-        local otherMagnitude = math.round(other.length(), 10000);
-
-        if (thisMagnitude > otherMagnitude) {
-            return 1;
-        } else if (thisMagnitude < otherMagnitude) {
-            return -1;
-        } else {
-            return 0; 
-        }
-    }
-
-    function _cmp(other) return this.cmp(other)
 
 
     function _add(other) {

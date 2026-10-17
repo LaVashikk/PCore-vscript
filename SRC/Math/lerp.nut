@@ -44,7 +44,10 @@ lerp["color"] <- function(start, end, t) {
         end = macros.StrToVec(end)
     }
 
-    return floor(math.lerp.number(start.x, end.x, t)) + " " + floor(math.lerp.number(start.y, end.y, t)) + " " + floor(math.lerp.number(start.z, end.z, t))
+    local r = math.clamp(floor(math.lerp.number(start.x, end.x, t)), 0, 255)
+    local g = math.clamp(floor(math.lerp.number(start.y, end.y, t)), 0, 255)
+    local b = math.clamp(floor(math.lerp.number(start.z, end.z, t)), 0, 255)
+    return r + " " + g + " " + b
 }
 
 /*
@@ -74,7 +77,7 @@ lerp["sVector"] <- function(start, end, t) {
 */
 lerp["SmoothStep"] <- function(edge0, edge1, value) {
     if(edge0 == edge1) return 0
-    local t = math.clamp((value - edge0) / (edge1 - edge0), 0.0, 1.0);
+    local t = math.clamp((value - edge0).tofloat() / (edge1 - edge0), 0.0, 1.0);
     return t * t * (3.0 - 2.0 * t)
 }
 
@@ -92,5 +95,5 @@ lerp["SmoothStep"] <- function(edge0, edge1, value) {
 */
 lerp["FLerp"] <- function( f1, f2, i1, i2, value ) {
     if(i1 == i2) return f2
-    return f1 + (f2 - f1) * (value - i1) / (i2 - i1);
+    return f1 + (f2 - f1) * (value - i1).tofloat() / (i2 - i1);
 }
