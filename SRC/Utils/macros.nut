@@ -91,7 +91,8 @@ macros["PrintIter"] <- function(iterable) {
  * @throws - If step is 0.
 */ 
 macros["Range"] <- function(start, end, step = 1) {
-    if(step == 0) throw("macros.Range: step must be non-zero");
+    // A negative step never reaches `end`, the loop would freeze the game
+    if(step <= 0) throw("macros.Range: step must be greater than 0, but got " + step);
     
     local result = List()
     for (local i = start; i <= end; i += step) {
@@ -110,7 +111,7 @@ macros["Range"] <- function(start, end, step = 1) {
  * @throws - If step is 0.
 */ 
 macros["RangeIter"] <- function(start, end, step = 1) {
-    if(step == 0) throw("macros.RangeIter: step must be non-zero");
+    if(step <= 0) throw("macros.RangeIter: step must be greater than 0, but got " + step);
 
     for (local i = start; i <= end; i += step) {
         yield i
